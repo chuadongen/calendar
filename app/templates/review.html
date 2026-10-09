@@ -29,30 +29,37 @@
 </div>
 
 <div class="grid-2">
-  <div class="card">
-    <div class="card-head"><h2>Progress by goal</h2><a class="btn ghost" href="/goals">Edit goals</a></div>
+  <div>
     {% if not data.goals %}
-      <p class="muted">No active goals yet. <a href="/goals">Add your first goal</a> and give it a Todoist label so completions count towards it.</p>
+    <div class="card"><p class="muted">No active goals yet. <a href="/goals">Add your first goal</a> and give it a Todoist label so completions count towards it.</p></div>
     {% endif %}
-    <ul class="task-list">
-      {% for g in data.goals %}
-      <li class="task">
-        <span class="dot" style="background: {{ categories[g.area if g.area in categories else 'life'].color }}; margin-top: 7px"></span>
-        <div class="task-body">
-          <div class="task-title">{{ g.title }}</div>
-          {% set total = g.done + g.open %}
-          <div class="bar" style="margin: 6px 0 2px"><span style="width: {{ (g.done / total * 100) | round(1) if total else 0 }}%"></span></div>
-          <div class="task-meta">
-            <span>{{ g.done }} of {{ total }} tasks done</span>
-            {% if g.weekly_hours %}<span>{{ g.planned_hours }}h of {{ '%g' % g.weekly_hours }}h planned</span>{% endif %}
-            {% if g.target %}<span class="label">Target: {{ g.target }}</span>{% endif %}
-            <span class="project">{{ g.area }}</span>
+    {% for horizon, heading, blurb in [('long', 'Long-term goals', 'Health, career and other aims measured in months.'), ('short', 'Short-term goals', 'This semester or sooner.')] %}
+    {% set rows = data.goals | selectattr('horizon', 'equalto', horizon) | list %}
+    {% if rows %}
+    <div class="card">
+      <div class="card-head"><div><h2>{{ heading }}</h2><div class="small faint">{{ blurb }}</div></div>{% if loop.first %}<a class="btn ghost" href="/goals">Edit goals</a>{% endif %}</div>
+      <ul class="task-list">
+        {% for g in rows %}
+        <li class="task">
+          <span class="dot" style="background: {{ categories[g.area if g.area in categories else 'life'].color }}; margin-top: 7px"></span>
+          <div class="task-body">
+            <div class="task-title">{{ g.title }}</div>
+            {% set total = g.done + g.open %}
+            <div class="bar" style="margin: 6px 0 2px"><span style="width: {{ (g.done / total * 100) | round(1) if total else 0 }}%"></span></div>
+            <div class="task-meta">
+              <span>{{ g.done }} of {{ total }} tasks done</span>
+              {% if g.weekly_hours %}<span>{{ g.planned_hours }}h of {{ '%g' % g.weekly_hours }}h planned</span>{% endif %}
+              {% if g.target %}<span class="label">Target: {{ g.target }}</span>{% endif %}
+              <span class="project">{{ g.area }}</span>
+            </div>
+            {% if g.examples %}<div class="task-meta">{{ g.examples[:4] | join(' · ') }}{% if g.examples | length > 4 %} …{% endif %}</div>{% endif %}
           </div>
-          {% if g.examples %}<div class="task-meta">{{ g.examples[:4] | join(' · ') }}{% if g.examples | length > 4 %} …{% endif %}</div>{% endif %}
-        </div>
-      </li>
-      {% endfor %}
-    </ul>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% endfor %}
   </div>
 
   <div>
@@ -79,22 +86,6 @@
         </ul>
       </div>
       {% endfor %}
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Coming up</h2></div>
-      <ul class="task-list">
-        {% for m in upcoming %}
-        <li class="task">
-          <span class="check square" style="--prio: {{ '#d1453b' if m.kind == 'exam' else '#eb8909' }}"></span>
-          <div class="task-body">
-            <div class="task-title">{{ m.title }}</div>
-            <div class="task-meta"><span class="when">{{ m.at.strftime('%a %d %b, %H:%M') }}</span><span class="project">{{ m.kind }}</span></div>
-          </div>
-        </li>
-        {% else %}
-        <li class="muted" style="list-style:none">No milestones. Add exams and deadlines on the Goals page.</li>
-        {% endfor %}
-      </ul>
     </div>
   </div>
 </div>

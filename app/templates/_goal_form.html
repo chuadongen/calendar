@@ -5,6 +5,12 @@
     <div class="field"><label>Area</label>
       <select name="area">{% for a in areas %}<option value="{{ a }}" {{ 'selected' if g and g.area == a }}>{{ a | capitalize }}</option>{% endfor %}</select>
     </div>
+    <div class="field"><label>Horizon</label>
+      <select name="horizon">
+        <option value="short" {{ 'selected' if not g or g.horizon == 'short' }}>Short term</option>
+        <option value="long" {{ 'selected' if g and g.horizon == 'long' }}>Long term</option>
+      </select>
+    </div>
   </div>
   <div class="row">
     <div class="field"><label>Metric</label><input name="metric" value="{{ g.metric if g }}" placeholder="Chapters revised"></div>

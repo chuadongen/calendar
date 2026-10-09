@@ -225,6 +225,7 @@
       state.tasks[m[1]] = !!body.done;
       return { id: m[1], done: !!body.done };
     }
+    if (path === "/api/todoist/week") return SEED.next_week_tasks;
     if (path === "/goals/export") return SEED.export_text;
     throw [404, `Not available in the demo: ${path}`];
   }

@@ -239,3 +239,12 @@ def set_task_state(task_id: str, body: TaskState):
     except todoist.TodoistError as exc:
         raise HTTPException(502, str(exc))
     return {"id": task_id, "done": body.done}
+
+
+@router.get("/todoist/week")
+def todoist_week(week: str | None = None):
+    """Next week's Todoist tasks for the Goals page (refreshable)."""
+    from app import review
+
+    data = review.upcoming(_week(week))
+    return {**data, "days": [{"date": d["date"].isoformat(), "tasks": d["tasks"]} for d in data["days"]]}

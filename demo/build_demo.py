@@ -8,6 +8,7 @@ HTML file, and demo-api.js answers the planning API inside the browser.
 
 import json
 import os
+import random
 import re
 import sys
 import tempfile
@@ -47,9 +48,11 @@ GOALS = [
          deadline=date(2026, 12, 5), notes="Algorithms is the weakest module. Revise right after lectures.",
          todoist_label="school", weekly_hours=8),
     dict(title="Cut to 75 kg at 14% body fat", area="fitness", metric="InBody scan", target="75 kg, 14%",
-         deadline=date(2026, 12, 20), notes="Gym 3x a week, track protein.", todoist_label="fitness", weekly_hours=4),
+         deadline=date(2026, 12, 20), notes="Gym 3x a week, track protein.", todoist_label="fitness", weekly_hours=4,
+         horizon="long"),
     dict(title="Lock in career direction", area="work", metric="Coffee chats held", target="2 per week",
-         notes="Founders, VCs, senior engineers. Write notes after each chat.", todoist_label="career", weekly_hours=3),
+         notes="Founders, VCs, senior engineers. Write notes after each chat.", todoist_label="career", weekly_hours=3,
+         horizon="long"),
     dict(title="Weekly reset routine", area="life", metric="Sundays completed", target="Every Sunday",
          todoist_label="life", weekly_hours=1),
 ]
@@ -91,10 +94,17 @@ COMPLETED = [
     ("Laundry", "", 1),
 ]
 RETROS = [
-    (THIS - timedelta(days=14), "Mornings were productive when I slept before 1am.", "Skipped two gym sessions.",
-     "Gym right after the last class of the day.", 3),
-    (THIS - timedelta(days=7), "Finished problem set early. Two good coffee chats.", "Phone in bed again, slept late.",
-     "Phone charges outside the bedroom.", 4),
+    (THIS - timedelta(days=7 * k), good, bad, change, energy)
+    for k, (good, bad, change, energy) in enumerate([
+        ("Finished problem set early. Two good coffee chats.", "Phone in bed again, slept late.",
+         "Phone charges outside the bedroom.", 4),
+        ("Mornings were productive when I slept before 1am.", "Skipped two gym sessions.",
+         "Gym right after the last class of the day.", 3),
+        ("Good run streak.", "Too many late suppers.", "Cap suppers at one a week.", 3),
+        ("Caught up on Databases.", "Felt drained by Thursday.", "Block a rest evening midweek.", 2),
+        ("Strong start to the semester.", "Over-planned the weekend.", "Leave Saturday afternoon free.", 4),
+        ("Settled into a routine.", "Little social time.", "Plan one dinner with friends.", 3),
+    ], start=1)
 ]
 
 
@@ -119,27 +129,68 @@ THIS_WEEK_EVENTS = [
 NEXT_MONDAY_FIRST = ("Revise Algorithms week 6", 7, "07:45", "09:00", "1")
 
 
+def _vary(week: date, title: str, day: int) -> random.Random:
+    return random.Random(f"{week}|{title}|{day}")
+
+
 class FakeCalendar:
+    """The same weekly pattern for every week, with some events dropped or shifted so trends move."""
+
+    def calendars(self):
+        return [{"id": "primary", "summary": "Dong En", "primary": True, "backgroundColor": "#039BE5"},
+                {"id": "todoist", "summary": "Todoist", "backgroundColor": "#E44332"}]
+
     def events(self, calendar_id, start, end):
         out = []
-        for title, day, s, e, color in THIS_WEEK_EVENTS + [NEXT_MONDAY_FIRST]:
-            a = at(THIS, day, s)
-            b = at(THIS, day, e)
-            if b <= a:
-                b += timedelta(days=1)
-            out.append({"summary": title, "colorId": color,
-                        "start": {"dateTime": to_aware(a).isoformat()}, "end": {"dateTime": to_aware(b).isoformat()}})
+        w = start.date() - timedelta(days=start.weekday())
+        while datetime.combine(w, time.min) < end:
+            for title, day, s, e, color in THIS_WEEK_EVENTS + [NEXT_MONDAY_FIRST]:
+                rnd = _vary(w, title, day)
+                if w != THIS and color in ("5", "6") and rnd.random() < 0.3:
+                    continue  # skipped social or exercise this week
+                a, b = at(w, day, s), at(w, day, e)
+                if b <= a:
+                    b += timedelta(days=1)
+                if w != THIS and b.hour >= 21 or b.hour < 4:
+                    shift = timedelta(minutes=rnd.choice([-60, -30, 0, 30, 60]))
+                    b += shift
+                if start <= a < end:
+                    out.append({"summary": title, "colorId": color,
+                                "start": {"dateTime": to_aware(a).isoformat()}, "end": {"dateTime": to_aware(b).isoformat()}})
+            w += timedelta(days=7)
         return out
 
 
-STRAVA = [
-    {"name": "Push day", "type": "WeightTraining", "start": at(THIS, 0, "17:35"), "minutes": 68, "km": 0, "source": "strava"},
-    {"name": "Morning run", "type": "Run", "start": at(THIS, 6, "08:02"), "minutes": 41, "km": 6.8, "source": "strava"},
-]
+def strava_history() -> list[dict]:
+    out = []
+    for back in range(8):
+        w = THIS - timedelta(weeks=back)
+        rnd = random.Random(f"strava|{w}")
+        out.append({"name": "Push day", "type": "WeightTraining", "start": at(w, 0, "17:35"), "minutes": 68, "km": 0, "source": "strava"})
+        for _ in range(rnd.choice([0, 1, 1, 2])):
+            day = rnd.choice([2, 4, 6])
+            km = round(rnd.uniform(4, 8), 1)
+            out.append({"name": "Morning run", "type": "Run", "start": at(w, day, "08:02"), "minutes": int(km * 6),
+                        "km": km, "source": "strava"})
+    return sorted(out, key=lambda a: a["start"])
 
-OPEN_THIS_WEEK = [  # (title, label, day, time or "", priority in Todoist API terms)
+
+def money_history(start, weeks):
+    rows = []
+    for i in range(weeks):
+        w = start + timedelta(weeks=i)
+        rnd = random.Random(f"money|{w}")
+        cats = {"Food": round(rnd.uniform(70, 120), 2), "Transport": round(rnd.uniform(15, 30), 2),
+                "Social": round(rnd.uniform(10, 80), 2), "Gym and health": round(rnd.uniform(0, 25), 2)}
+        rows.append({"week_start": w.isoformat(), "spent": round(sum(cats.values()), 2), "categories": cats})
+    return {"currency": "SGD", "weekly_budget": 220, "weeks": rows}
+
+
+OPEN_THIS_WEEK = [  # (title, label, day from this Monday, time or "", priority in Todoist API terms)
     ("Algorithms problem set 5", "school", 4, "21:00", 4), ("Book InBody scan", "fitness", 5, "", 2),
     ("Write notes from coffee chat", "career", 4, "16:00", 3), ("Plan next week", "life", 6, "21:00", 3),
+    ("Databases lab 4", "school", 11, "23:00", 4), ("Algorithms midterm revision", "school", 9, "", 4),
+    ("Coffee chat with a founder", "career", 10, "15:00", 3), ("Renew gym membership", "fitness", 8, "", 2),
 ]
 
 
@@ -147,10 +198,18 @@ class FakeTodoist:
     configured = True
 
     def completed_between(self, since, until):
-        return [{"id": str(n), "task_id": str(n), "content": c, "labels": [l] if l else [], "priority": p,
-                 "due": {"date": (THIS + timedelta(days=n % 5)).isoformat()},
-                 "completed_at": (THIS + timedelta(days=n % 5)).isoformat() + "T10:00:00Z"}
-                for n, (c, l, p) in enumerate(COMPLETED)]
+        out = []
+        w = since.date() - timedelta(days=since.weekday())
+        while datetime.combine(w, time.min) < until:
+            rnd = random.Random(f"tasks|{w}")
+            for n, (c, l, p) in enumerate(COMPLETED):
+                if w != THIS and rnd.random() < 0.35:
+                    continue
+                day = w + timedelta(days=n % 5)
+                out.append({"id": f"{w}-{n}", "task_id": f"{w}-{n}", "content": c, "labels": [l] if l else [],
+                            "priority": p, "due": {"date": day.isoformat()}, "completed_at": day.isoformat() + "T10:00:00Z"})
+            w += timedelta(days=7)
+        return out
 
     def open_tasks(self):
         return [{"id": f"o{n}", "content": c, "labels": [l], "priority": p,
@@ -215,7 +274,9 @@ def build() -> None:
     dashboard.gcal.connected = lambda: True
     dashboard.gcal.Calendar = FakeCalendar
     dashboard.strava.connected = lambda: True
-    dashboard.strava.activities = lambda begin, end: STRAVA
+    dashboard.strava.activities = lambda begin, end: strava_history()
+    dashboard.money.configured = lambda: True
+    dashboard.money.weekly = money_history
 
     pages = {}
     with TestClient(main.app) as client:
@@ -226,6 +287,7 @@ def build() -> None:
             pages[name] = resp.text
         export_text = client.get(f"/goals/export?week={THIS}").text
         api_items = client.get(f"/api/plan?week={NEXT}").json()["items"]
+        next_week_tasks = client.get(f"/api/todoist/week?week={NEXT}").json()
 
     sidebar = extract(pages["plan"], r'(<aside class="sidebar">.*?</aside>)')
     sections = []
@@ -235,14 +297,15 @@ def build() -> None:
         body = re.sub(r'<div class="toast" id="toast" hidden></div>', "", body)
         sections.append(main_tag.replace("<main ", f'<main data-page="{name}" hidden ') + body + "</main>")
 
+    dashboard_script = extract(pages["dashboard"], r'(<script>\s*// Hovering.*?</script>)')
     review_script = extract(pages["review"], r'(<script>\s*// Tick or untick.*?</script>)')
-    goals_script = extract(pages["goals"], r'(<script>\s*document\.getElementById\("copy-context"\).*?</script>)')
+    goals_script = extract(pages["goals"], r'(<script>\s*// Next week.*?</script>)')
     plan_config = extract(pages["plan"], r"(<script>\s*window\.PLAN = .*?</script>)")
 
     items = [{k: i[k] for k in ("id", "title", "kind", "category", "duration_min", "start", "location",
                                  "priority", "goal_id", "notes", "origin")} for i in api_items]
     seed_data = {
-        "seedVersion": f"{NEXT}-2",
+        "seedVersion": f"{NEXT}-3",
         "week": NEXT.isoformat(),
         "prefs": get_prefs(db),
         "categories": CATEGORIES,
@@ -252,6 +315,7 @@ def build() -> None:
                  for e in sample_busy.events],
         "todoist_pool": TODOIST_POOL,
         "export_text": export_text,
+        "next_week_tasks": next_week_tasks,
     }
 
     css = (ROOT / "app/static/css/app.css").read_text()
@@ -285,6 +349,7 @@ html, body {{ height: 100%; }}
 <script>{safe(plan_js)}</script>
 {goals_script}
 {review_script}
+{dashboard_script}
 """
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(doc)

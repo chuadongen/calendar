@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
 from app.dashboard import ENERGY
-from app.models import AREAS, Goal, GoalVersion, Milestone, Retro
+from app.models import AREAS, HORIZONS, Goal, GoalVersion, Milestone, Retro
 
-GOAL_FIELDS = ("area", "title", "metric", "target", "deadline", "notes",
+GOAL_FIELDS = ("area", "horizon", "title", "metric", "target", "deadline", "notes",
                "todoist_label", "todoist_project_id", "weekly_hours", "active")
 
 
@@ -44,6 +44,7 @@ def snapshot(db: Session, week: date, source: str, note: str = "") -> GoalVersio
 class GoalIn(BaseModel):
     id: int | None = None
     area: str = "life"
+    horizon: str = "short"
     title: str
     metric: str = ""
     target: str = ""
@@ -59,6 +60,13 @@ class GoalIn(BaseModel):
     def _area(cls, v: str) -> str:
         if v not in AREAS:
             raise ValueError(f"area must be one of {', '.join(AREAS)}")
+        return v
+
+    @field_validator("horizon")
+    @classmethod
+    def _horizon(cls, v: str) -> str:
+        if v not in HORIZONS:
+            raise ValueError("horizon must be long or short")
         return v
 
 
@@ -160,10 +168,10 @@ def apply(db: Session, update: GoalUpdate, week: date) -> GoalVersion:
 EXAMPLE = {
     "note": "Why these changes were made",
     "upsert_goals": [
-        {"id": 1, "area": "school", "title": "ST2131 A grade", "metric": "Chapters revised",
+        {"id": 1, "area": "school", "horizon": "short", "title": "ST2131 A grade", "metric": "Chapters revised",
          "target": "All 10 by week 12", "deadline": "2026-11-28", "notes": "Weak on hypothesis testing",
          "todoist_label": "st2131", "todoist_project_id": "", "weekly_hours": 6, "active": True},
-        {"area": "fitness", "title": "New goal without an id is added", "weekly_hours": 4},
+        {"area": "fitness", "horizon": "long", "title": "New goal without an id is added", "weekly_hours": 4},
     ],
     "archive_goal_ids": [],
     "upsert_milestones": [{"goal_id": 1, "kind": "exam", "title": "ST2131 Midterm", "at": "2026-10-20T09:00"}],
@@ -171,7 +179,7 @@ EXAMPLE = {
 }
 
 
-def export_context(db: Session, week: date, review: dict | None = None) -> str:
+def export_context(db: Session, week: date, review: dict | None = None, upcoming: dict | None = None) -> str:
     goals = db.query(Goal).filter(Goal.active.is_(True)).order_by(Goal.area, Goal.id).all()
     milestones = db.query(Milestone).filter(Milestone.at >= datetime.combine(week, datetime.min.time())) \
         .order_by(Milestone.at).limit(20).all()
@@ -189,7 +197,7 @@ def export_context(db: Session, week: date, review: dict | None = None) -> str:
     if not goals:
         lines.append("(none yet)")
     for g in goals:
-        lines.append(f"- [id {g.id}] ({g.area}) **{g.title}**: metric '{g.metric}', target '{g.target}', "
+        lines.append(f"- [id {g.id}] ({g.area}, {g.horizon}-term) **{g.title}**: metric '{g.metric}', target '{g.target}', "
                      f"deadline {g.deadline or 'none'}, {g.weekly_hours:g} h/week planned"
                      + (f", Todoist label @{g.todoist_label}" if g.todoist_label else ""))
         if g.notes:
@@ -208,6 +216,14 @@ def export_context(db: Session, week: date, review: dict | None = None) -> str:
         if review["unmatched"]:
             lines.append(f"- Other completed tasks: {', '.join(t['content'] for t in review['unmatched'][:10])}")
 
+    if upcoming and upcoming.get("count"):
+        lines += ["", "## Already in Todoist for next week"]
+        for day in upcoming["days"]:
+            for t in day["tasks"]:
+                when = f"{day['date']:%a %d %b}" + (f" {t['time']}" if t["time"] else "")
+                labels = "".join(f" @{l}" for l in t["labels"])
+                lines.append(f"- {when}: {t['content']}{labels}")
+
     lines += ["", "## Recent retrospectives"]
     for r in retros:
         mood = ENERGY.get(r.energy)
@@ -218,5 +234,6 @@ def export_context(db: Session, week: date, review: dict | None = None) -> str:
         lines.append("(none yet)")
 
     lines += ["", "## Reply schema", "", "```json", json.dumps(EXAMPLE, indent=2), "```",
-              "", f"Allowed areas: {', '.join(AREAS)}. Dates are ISO 8601 in my local time."]
+              "", f"Allowed areas: {', '.join(AREAS)}. Horizon is long (health, career, months) or short "
+              "(this semester or sooner). Dates are ISO 8601 in my local time."]
     return "\n".join(lines)

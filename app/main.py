@@ -24,7 +24,12 @@ ROOT = Path(__file__).parent
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from app.categories import apply_colors
+    from app.db import SessionLocal
+
     init_db()
+    with SessionLocal() as db:
+        apply_colors(get_prefs(db).get("category_colors"))
     yield
 
 
@@ -32,7 +37,9 @@ app = FastAPI(title="Sprint Planner", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 app.include_router(api.router)
 templates = Jinja2Templates(directory=ROOT / "templates")
-templates.env.globals.update(categories=CATEGORIES, priority_colors=PRIORITY_COLORS, areas=AREAS,
+from app.categories import GCAL_COLORS  # noqa: E402
+
+templates.env.globals.update(categories=CATEGORIES, gcal_colors=GCAL_COLORS, priority_colors=PRIORITY_COLORS, areas=AREAS,
                              delta=lambda days: timedelta(days=days), energy=dashboard.ENERGY,
                              muscles=dashboard.MUSCLES)
 
@@ -89,9 +96,7 @@ def review_page(request: Request, week: str | None = None, db: Session = Depends
 
     wk = _week(week, current_week())
     data = review.week_review(db, wk)
-    upcoming = db.query(Milestone).filter(Milestone.at >= datetime.combine(wk, datetime.min.time())) \
-        .order_by(Milestone.at).limit(6).all()
-    return render(request, "review.html", week=wk, data=data, upcoming=upcoming,
+    return render(request, "review.html", week=wk, data=data,
                   prev_week=wk - timedelta(days=7), following_week=wk + timedelta(days=7))
 
 
@@ -155,7 +160,7 @@ def goals_page(request: Request, db: Session = Depends(get_session)):
 def save_goal(goal_id: str = Form(""), area: str = Form("life"), title: str = Form(...),
               metric: str = Form(""), target: str = Form(""), deadline: str = Form(""),
               notes: str = Form(""), todoist_label: str = Form(""), todoist_project_id: str = Form(""),
-              weekly_hours: str = Form("0"), db: Session = Depends(get_session)):
+              weekly_hours: str = Form("0"), horizon: str = Form("short"), db: Session = Depends(get_session)):
     from app.weeks import current_week
 
     goal = db.get(Goal, int(goal_id)) if goal_id else None
@@ -163,6 +168,7 @@ def save_goal(goal_id: str = Form(""), area: str = Form("life"), title: str = Fo
         goal = Goal()
         db.add(goal)
     goal.area = area if area in AREAS else "life"
+    goal.horizon = horizon if horizon in ("long", "short") else "short"
     goal.title, goal.metric, goal.target, goal.notes = title.strip(), metric, target, notes
     goal.deadline = date.fromisoformat(deadline) if deadline else None
     goal.todoist_label = todoist_label.strip().lstrip("@")
@@ -214,10 +220,12 @@ def export_context(week: str | None = None, include_review: bool = True, db: Ses
     from app.weeks import current_week
 
     wk = _week(week, current_week())
+    from app.weeks import planning_week
+
     data = review.week_review(db, wk) if include_review else None
     if data and data["error"]:
         data = None
-    return goals_svc.export_context(db, wk, data)
+    return goals_svc.export_context(db, wk, data, review.upcoming(planning_week()))
 
 
 @app.post("/goals/import")
@@ -291,6 +299,10 @@ async def save_settings(request: Request, db: Session = Depends(get_session)):
         if a and b:
             windows[key] = [a, b]
     set_pref(db, "preferred_windows", windows)
+    from app.categories import DEFAULTS as CATEGORY_DEFAULTS, GCAL_COLORS
+
+    set_pref(db, "category_colors", {key: form.get(f"color_{key}") for key in CATEGORY_DEFAULTS
+                                     if form.get(f"color_{key}") in GCAL_COLORS})
     travel = {}
     for line in str(form.get("travel", "")).splitlines():
         # Format per line: "home | smu = 50"

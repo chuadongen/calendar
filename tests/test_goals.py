@@ -61,7 +61,22 @@ def test_export_context_contains_goals_retros_and_schema(db):
     text = goals.export_context(db, WEEK, {"planned_done": 3, "planned_total": 5,
                                            "goals": [{"title": "ST2131", "done": 3, "examples": ["Ch1"]}],
                                            "unmatched": []})
-    assert "[id 1] (school) **ST2131**" in text
+    assert "[id 1] (school, short-term) **ST2131**" in text
     assert "Planned tasks completed: 3 of 5" in text
     assert "Sleep by 12" in text
     assert '"upsert_goals"' in text
+
+
+def test_old_database_gets_new_columns(tmp_path):
+    from sqlalchemy import create_engine, inspect, text
+
+    from app.db import init_db
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE goals (id INTEGER PRIMARY KEY, title VARCHAR(200))"))
+        conn.execute(text("INSERT INTO goals (title) VALUES ('Old goal')"))
+    init_db(engine)
+    assert "horizon" in {c["name"] for c in inspect(engine).get_columns("goals")}
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT horizon FROM goals")).scalar() == "short"

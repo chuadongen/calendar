@@ -39,7 +39,7 @@ def week_review(db: Session, week: date, todo=None) -> dict:
         matched.update(id(t) for t in hits)
         hours = sum(p.duration_min for p in planned if p.goal_id == g.id) / 60
         result["goals"].append({
-            "id": g.id, "title": g.title, "area": g.area, "target": g.target,
+            "id": g.id, "title": g.title, "area": g.area, "target": g.target, "horizon": g.horizon,
             "done": len(hits), "open": len(still_open), "examples": [t.get("content", "") for t in hits],
             "planned_hours": round(hours, 1), "weekly_hours": g.weekly_hours,
         })
@@ -87,3 +87,17 @@ def _matches(goal: Goal, task: dict) -> bool:
     if goal.todoist_label and goal.todoist_label in (task.get("labels") or []):
         return True
     return bool(goal.todoist_project_id) and goal.todoist_project_id == str(task.get("project_id", ""))
+
+
+def upcoming(week: date, todo=None) -> dict:
+    """Open Todoist tasks due in the given week, grouped by day."""
+    td = todo if todo is not None else todoist.Todoist()
+    if not td.configured:
+        return {"days": [], "count": 0, "error": "Set TODOIST_API_TOKEN to see next week's tasks."}
+    try:
+        tasks = td.open_tasks()
+    except Exception as exc:
+        return {"days": [], "count": 0, "error": f"Could not read Todoist: {exc}"}
+    first, last = week.isoformat(), (week + timedelta(days=6)).isoformat()
+    in_week = [t for t in tasks if first <= todoist.due_date(t) <= last]
+    return {"days": _by_day(week, in_week, []), "count": len(in_week), "error": ""}

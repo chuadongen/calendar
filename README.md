@@ -19,7 +19,11 @@ It runs on a home server and is reached over Tailscale. There is no login screen
    * **Where the time went:** hours per category. Plan blocks keep their own category; other Google Calendar events are sorted by colour (Grape = school and work, Tangerine = exercise, Banana = social, Basil = travel, Lavender = revision, Peacock = life).
    * **Sleep:** estimated per night from your last event of the day to your first event the next morning. Events before 4am count towards the previous day. Gaps over 14 hours are left blank, because they mean an empty calendar rather than sleep.
    * **Training:** Strava activities plus Exercise blocks that Strava did not log, and a front and back muscle map shaded by how many sessions hit each muscle. Muscles come from words in the workout title (push, pull, legs, run and so on).
-   * **Goals** and **Energy:** task progress per goal, and the energy trend from your retrospectives.
+   * **Trends:** sleep, tasks done, workouts and energy each show an 8-week sparkline and the change from last week.
+   * **Compare with last week:** hover the time card and each bar animates from last week's hours to this week's, with a line marking last week.
+   * **Cardio:** a heart between the body figures counts cardio sessions (runs, rides, swims, HIIT and so on).
+   * **Money:** a placeholder for your own money app (see below).
+   * **Goals** and **Energy:** task progress per goal, and the energy you pick in each weekly retrospective.
 2. **Review**: this week's Todoist tasks, day by day. Tick or untick them and Todoist is updated straight away. Each goal shows how many of its tasks are done. A task counts towards a goal when it has the goal's label (or is in the goal's project).
 3. **Retrospective**: what went well, what did not, one change, and your energy as an emoji. Each week's entry is saved.
 4. **Goals**: *Copy context* gives a markdown snapshot (goals, milestones, this week's results, recent retros, and the reply schema). Paste it into Claude or Gemini and discuss. Then paste the chat's JSON reply into *Preview changes*, check the changes, and approve. Each approval saves a new version you can look back at.
@@ -62,7 +66,11 @@ Put that URL in `.env` as `BASE_URL`.
 
 Create an API application at strava.com/settings/api, set its Authorization Callback Domain to the host part of `BASE_URL`, and put its client id and secret in `.env`. Then open **Settings → Connect** next to Strava.
 
-### 5. Run
+### 5. Money app (later)
+
+Set `MONEY_API_URL` and the dashboard calls `GET {MONEY_API_URL}/weekly?start=YYYY-MM-DD&weeks=8`. The expected JSON is documented in `app/integrations/money.py`.
+
+### 6. Run
 
 ```bash
 cp .env.example .env    # then fill it in

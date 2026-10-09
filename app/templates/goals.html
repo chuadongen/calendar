@@ -25,6 +25,7 @@
                 <div class="task-meta">
                   {% if g.target %}<span>{{ g.target }}</span>{% endif %}
                   {% if g.deadline %}<span class="when">by {{ g.deadline.strftime('%d %b') }}</span>{% endif %}
+                  <span class="pill" style="padding: 0 8px">{{ 'Long term' if g.horizon == 'long' else 'Short term' }}</span>
                   {% if g.weekly_hours %}<span>{{ '%g' % g.weekly_hours }} h/week</span>{% endif %}
                   {% if g.todoist_label %}<span class="label">@{{ g.todoist_label }}</span>{% endif %}
                   <span class="project">{{ g.area }}</span>
@@ -91,10 +92,18 @@
   </div>
 
   <div>
+    <div class="card" id="next-week">
+      <div class="card-head">
+        <div><h2>Next week in Todoist</h2><div class="small faint" id="next-week-range">Week of {{ next_week.strftime('%d %b') }}</div></div>
+        <button class="btn" type="button" id="refresh-next">Refresh</button>
+      </div>
+      <div id="next-week-body"><p class="muted small">Loading from Todoist…</p></div>
+    </div>
+
     <div class="card">
       <div class="card-head"><h2>Discuss with an LLM</h2></div>
       <ol class="small muted" style="padding-left: 18px; margin-top: 0">
-        <li>Copy the context and paste it into your planning chat (Claude, Gemini, any).</li>
+        <li>Copy the context and paste it into your planning chat (Claude, Gemini, any). It includes your goals, this week's results, recent retros and next week's Todoist tasks.</li>
         <li>Talk it through. When you agree, ask for the JSON update.</li>
         <li>Paste the reply below. You will see every change before it is saved.</li>
       </ol>
@@ -132,6 +141,38 @@
 {% endblock %}
 {% block scripts %}
 <script>
+  // Next week's Todoist tasks, re-read whenever Refresh is pressed.
+  (() => {
+    const body = document.getElementById("next-week-body");
+    const btn = document.getElementById("refresh-next");
+    const prio = {{ priority_colors | tojson }};
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    async function load() {
+      btn.disabled = true;
+      try {
+        const data = await (await fetch("/api/todoist/week?week={{ next_week }}")).json();
+        if (data.error) { body.innerHTML = `<p class="muted small">${esc(data.error)}</p>`; return; }
+        const days = data.days.filter((d) => d.tasks.length);
+        body.innerHTML = days.length ? days.map((d) => `
+          <div class="day-group">
+            <div class="day-head">${new Date(d.date + "T00:00").toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short" })}<span class="muted" style="margin-left:auto">${d.tasks.length}</span></div>
+            <ul class="task-list">${d.tasks.map((t) => `
+              <li class="task"><span class="check" style="--prio: ${prio[t.priority]}"></span>
+                <div class="task-body"><div class="task-title">${esc(t.content)}</div>
+                  <div class="task-meta">${t.time ? `<span class="when">${esc(t.time)}</span>` : ""}${t.labels.map((l) => `<span class="label">@${esc(l)}</span>`).join("")}</div>
+                </div></li>`).join("")}</ul>
+          </div>`).join("") : `<p class="muted small">Nothing due next week yet.</p>`;
+        document.getElementById("next-week-range").textContent = `Week of {{ next_week.strftime('%d %b') }} · ${data.count} task${data.count === 1 ? "" : "s"} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      } catch (e) {
+        body.innerHTML = `<p class="muted small">Could not load: ${esc(e.message)}</p>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    btn.addEventListener("click", load);
+    load();
+  })();
+
   document.getElementById("copy-context").addEventListener("click", async () => {
     const text = await (await fetch("/goals/export")).text();
     const toast = document.getElementById("toast");

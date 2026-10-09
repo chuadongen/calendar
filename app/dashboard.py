@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.categories import CATEGORIES, COLOR_TO_CATEGORY
-from app.integrations import gcal, strava, todoist
+from app.integrations import gcal, money, strava, todoist
 from app.models import Goal, PlanItem, Retro
 from app.weeks import week_bounds
 
@@ -39,7 +39,8 @@ class Timeline:
     errors: list[str] = field(default_factory=list)
 
 
-def gather_timeline(db: Session, begin: datetime, end: datetime, prefs: dict, calendar=None, todo=None) -> Timeline:
+def gather_timeline(db: Session, begin: datetime, end: datetime, prefs: dict, calendar=None, todo=None,
+                    completed: list[dict] | None = None) -> Timeline:
     """Every timed commitment between begin and end, each with a category."""
     tl = Timeline()
     for item in db.query(PlanItem).filter(PlanItem.start >= begin, PlanItem.start < end).all():
@@ -70,7 +71,8 @@ def gather_timeline(db: Session, begin: datetime, end: datetime, prefs: dict, ca
         if td.configured:
             goals = db.query(Goal).filter(Goal.todoist_label != "").all()
             area_by_label = {g.todoist_label: g.area for g in goals}
-            for task in td.open_tasks() + td.completed_between(begin, end):
+            done = completed if completed is not None else td.completed_between(begin, end)
+            for task in td.open_tasks() + done:
                 tid = str(task.get("task_id") or task.get("id"))
                 start = todoist.task_start(task)
                 if tid in linked or start is None or not (begin <= start < end):
@@ -138,7 +140,13 @@ def muscles_for(title: str, keywords: dict[str, list[str]]) -> set[str]:
     return hit
 
 
-def training(events: list[Event], activities: list[dict], keywords: dict, begin: datetime, end: datetime) -> dict:
+def is_cardio(text: str, keywords: list[str]) -> bool:
+    text = text.lower()
+    return any(re.search(r"\b" + re.escape(w.lower()) + r"s?\b", text) for w in keywords)
+
+
+def training(events: list[Event], activities: list[dict], keywords: dict, begin: datetime, end: datetime,
+             cardio_keywords: list[str] | None = None) -> dict:
     """Workout sessions (Strava first, calendar blocks that Strava did not log) and muscle counts."""
     sessions = [dict(a) for a in activities]
     for e in events:
@@ -149,49 +157,131 @@ def training(events: list[Event], activities: list[dict], keywords: dict, begin:
             continue  # Strava already logged this one
         sessions.append({"name": e.title, "type": "Calendar", "start": e.start,
                          "minutes": round((e.end - e.start).total_seconds() / 60), "km": 0, "source": e.source})
+    sessions = [x for x in sessions if begin <= x["start"] < end]
     sessions.sort(key=lambda s: s["start"])
     counts = {m: 0 for m in MUSCLES}
+    cardio = {"sessions": 0, "minutes": 0}
     for s in sessions:
-        s["muscles"] = sorted(muscles_for(f"{s['name']} {s['type']}", keywords))
+        text = f"{s['name']} {s['type']}"
+        s["muscles"] = sorted(muscles_for(text, keywords))
+        s["cardio"] = is_cardio(text, cardio_keywords or [])
         for m in s["muscles"]:
             if m in counts:
                 counts[m] += 1
-    return {"sessions": sessions, "muscles": counts, "minutes": sum(s["minutes"] for s in sessions)}
+        if s["cardio"]:
+            cardio["sessions"] += 1
+            cardio["minutes"] += s["minutes"]
+    return {"sessions": sessions, "muscles": counts, "cardio": cardio, "minutes": sum(s["minutes"] for s in sessions)}
+
+
+TREND_WEEKS = 8
+
+
+def _avg(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def compare(now: list[dict], before: list[dict]) -> list[dict]:
+    """Category rows for this week with last week's hours alongside, for the hover comparison."""
+    prev = {r["key"]: r["hours"] for r in before}
+    rows = [{**r, "prev": prev.pop(r["key"], 0.0)} for r in now]
+    for r in before:
+        if r["key"] in prev:  # categories that dropped to zero this week
+            rows.append({**r, "hours": 0.0, "prev": r["hours"]})
+    return rows
+
+
+def _money(first_week: date, weeks: list[date], errors: list[str]) -> dict | None:
+    if not money.configured():
+        return None
+    try:
+        raw = money.weekly(first_week, len(weeks))
+    except Exception as exc:
+        errors.append(f"Could not read the money app: {exc}")
+        return None
+    by_week = {w.get("week_start"): w for w in raw.get("weeks", [])}
+    this = by_week.get(weeks[-1].isoformat(), {})
+    cats = sorted((this.get("categories") or {}).items(), key=lambda kv: -kv[1])
+    return {
+        "currency": raw.get("currency", ""),
+        "budget": raw.get("weekly_budget"),
+        "spent": this.get("spent"),
+        "categories": [{"name": k, "amount": round(v, 2)} for k, v in cats],
+        "trend": [{"week": w, "value": by_week.get(w.isoformat(), {}).get("spent")} for w in weeks],
+    }
 
 
 def build(db: Session, week: date, prefs: dict, review: dict, calendar=None, todo=None,
           activities: list[dict] | None = None) -> dict:
+    weeks = [week - timedelta(weeks=i) for i in range(TREND_WEEKS - 1, -1, -1)]
+    first, _ = week_bounds(weeks[0])
     begin, end = week_bounds(week)
+    errors: list[str] = []
+
+    td = todo if todo is not None else todoist.Todoist()
+    completed: list[dict] = []
+    if td.configured:
+        try:
+            completed = td.completed_between(first, end)
+        except Exception as exc:
+            errors.append(f"Could not read Todoist history: {exc}")
+
     # One extra day so Sunday night's sleep can see Monday's first event.
-    tl = gather_timeline(db, begin, end + timedelta(days=1), prefs, calendar, todo)
-    errors = list(tl.errors)
+    tl = gather_timeline(db, first, end + timedelta(days=1), prefs, calendar, td, completed)
+    errors += tl.errors
 
     if activities is None:
         activities = []
         if strava.connected():
             try:
-                activities = strava.activities(begin, end)
+                activities = strava.activities(first, end)
             except Exception as exc:
                 errors.append(f"Could not read Strava: {exc}")
         elif strava.configured():
             errors.append("Connect Strava in Settings to log workouts automatically.")
 
+    keywords, cardio_kw = prefs.get("muscle_keywords", {}), prefs.get("cardio_keywords", [])
+    retros = {r.week_start: r.energy for r in db.query(Retro).filter(Retro.week_start >= weeks[0],
+                                                                       Retro.week_start <= week).all()}
+
+    trend = []
+    for w in weeks:
+        b, e = week_bounds(w)
+        hours = [n["hours"] for n in sleep_nights(tl.events, w) if n["hours"] is not None]
+        done = sum(1 for t in completed if t.get("completed_at") and b <= _local(t["completed_at"]) < e)
+        trend.append({
+            "week": w,
+            "sleep": _avg(hours),
+            "tasks": done,
+            "workouts": len(training(tl.events, activities, keywords, b, e, cardio_kw)["sessions"]),
+            "energy": retros.get(w) if retros.get(w) in ENERGY else None,
+        })
+
     dist = distribution(tl.events, begin, end)
+    last_dist = distribution(tl.events, begin - timedelta(days=7), begin)
     nights = sleep_nights(tl.events, week)
     known = [n["hours"] for n in nights if n["hours"] is not None]
-    retros = db.query(Retro).filter(Retro.week_start <= week).order_by(Retro.week_start.desc()).limit(8).all()
-
     done, still_open = len(review["completed"]), review["open_total"]
+    energy_now = retros.get(week)
     return {
         "errors": errors,
-        "distribution": dist,
+        "distribution": compare(dist, last_dist),
         "total_hours": round(sum(r["hours"] for r in dist), 1),
         "nights": nights,
-        "sleep_avg": round(sum(known) / len(known), 1) if known else None,
+        "sleep_avg": _avg(known),
         "short_nights": sum(1 for h in known if h < 7),
-        "training": training(tl.events, activities, prefs.get("muscle_keywords", {}), begin, end),
+        "training": training(tl.events, activities, keywords, begin, end, cardio_kw),
         "tasks": {"done": done, "open": still_open,
                   "rate": round(done / (done + still_open) * 100) if done + still_open else None},
-        "energy": [{"week": r.week_start, "value": r.energy, "emoji": ENERGY[r.energy][0], "label": ENERGY[r.energy][1]}
-                   for r in reversed(retros) if r.energy in ENERGY],
+        "energy_now": {"emoji": ENERGY[energy_now][0], "label": ENERGY[energy_now][1]} if energy_now in ENERGY else None,
+        "energy": [{"week": t["week"], "value": t["energy"], "emoji": ENERGY[t["energy"]][0],
+                    "label": ENERGY[t["energy"]][1]} for t in trend if t["energy"]],
+        "trend": trend,
+        "money": _money(weeks[0], weeks, errors),
     }
+
+
+def _local(stamp: str) -> datetime:
+    from app.weeks import to_local_naive
+
+    return to_local_naive(datetime.fromisoformat(stamp.replace("Z", "+00:00")))

@@ -14,6 +14,7 @@ from app.config import settings
 from app.db import Base
 
 AREAS = ("school", "work", "fitness", "life")
+HORIZONS = ("long", "short")
 
 
 def _now() -> datetime:
@@ -34,6 +35,8 @@ class Goal(Base):
     todoist_label: Mapped[str] = mapped_column(String(100), default="")
     todoist_project_id: Mapped[str] = mapped_column(String(50), default="")
     weekly_hours: Mapped[float] = mapped_column(default=0.0)
+    # "long" for months-long aims (health, career), "short" for this semester or sooner.
+    horizon: Mapped[str] = mapped_column(String(10), default="short", server_default="short")
     active: Mapped[bool] = mapped_column(default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 

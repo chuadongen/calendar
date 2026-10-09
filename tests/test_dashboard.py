@@ -121,3 +121,53 @@ def test_strava_refreshes_expired_token_and_reads_activities(tmp_path, monkeypat
     assert acts == [{"name": "Run", "type": "Run", "start": datetime(2026, 10, 13, 7), "minutes": 30, "km": 5.2,
                      "source": "strava"}]
     assert json.loads((tmp_path / "s.json").read_text())["refresh_token"] == "r2"
+
+
+def test_compare_keeps_categories_that_dropped_to_zero():
+    now = [{"key": "school", "label": "School", "color": "#8E24AA", "hours": 10.0}]
+    before = [{"key": "school", "label": "School", "color": "#8E24AA", "hours": 12.0},
+              {"key": "social", "label": "Social", "color": "#F6BF26", "hours": 4.0}]
+    rows = dashboard.compare(now, before)
+    assert [(r["key"], r["hours"], r["prev"]) for r in rows] == [("school", 10.0, 12.0), ("social", 0.0, 4.0)]
+
+
+def test_cardio_sessions_are_counted_for_the_heart():
+    acts = [{"name": "Morning", "type": "TrailRun", "start": datetime(2026, 10, 13, 7), "minutes": 40, "km": 7, "source": "strava"},
+            {"name": "Push day", "type": "WeightTraining", "start": datetime(2026, 10, 14, 18), "minutes": 60, "km": 0, "source": "strava"},
+            {"name": "Old run", "type": "Run", "start": datetime(2026, 10, 2, 7), "minutes": 30, "km": 5, "source": "strava"}]
+    t = dashboard.training([], acts, DEFAULTS["muscle_keywords"], BEGIN, END, DEFAULTS["cardio_keywords"])
+    assert t["cardio"] == {"sessions": 1, "minutes": 40}
+    assert len(t["sessions"]) == 2  # the run from an earlier week is left out
+
+
+def test_money_client_calls_the_weekly_endpoint(monkeypatch):
+    from app.integrations import money
+
+    monkeypatch.setenv("MONEY_API_URL", "http://money.local/api/")
+
+    def handler(req):
+        assert req.url.path == "/api/weekly"
+        assert (req.url.params["start"], req.url.params["weeks"]) == ("2026-10-05", "2")
+        return httpx.Response(200, json={"currency": "SGD", "weeks": []})
+
+    assert money.weekly(date(2026, 10, 5), 2, transport=httpx.MockTransport(handler)) == {"currency": "SGD", "weeks": []}
+
+
+def test_money_card_data(monkeypatch):
+    from app.integrations import money
+
+    monkeypatch.setenv("MONEY_API_URL", "http://money.local")
+    monkeypatch.setattr(money, "weekly", lambda start, weeks: {"currency": "SGD", "weekly_budget": 200, "weeks": [
+        {"week_start": "2026-10-12", "spent": 150.5, "categories": {"Transport": 60.5, "Food": 90}}]})
+    weeks = [date(2026, 10, 5), WEEK]
+    out = dashboard._money(weeks[0], weeks, [])
+    assert (out["spent"], out["budget"], out["currency"]) == (150.5, 200, "SGD")
+    assert [c["name"] for c in out["categories"]] == ["Food", "Transport"]
+    assert [p["value"] for p in out["trend"]] == [None, 150.5]
+
+
+def test_upcoming_lists_next_weeks_tasks(fake_todo):
+    fake_todo._open = [{"id": "a", "content": "Lab 5", "labels": ["school"], "priority": 3, "due": {"date": "2026-10-14"}},
+                       {"id": "b", "content": "Later", "due": {"date": "2026-10-30"}}]
+    up = review.upcoming(WEEK, todo=fake_todo)
+    assert up["count"] == 1 and up["days"][2]["tasks"][0]["content"] == "Lab 5"

@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from sqlalchemy.orm import Session
 
+from app.categories import apply_colors
 from app.models import Setting
 
 DEFAULTS: dict = {
@@ -46,6 +47,12 @@ DEFAULTS: dict = {
         "climb": ["back", "biceps", "forearms"], "climbing": ["back", "biceps", "forearms"],
         "handball": ["shoulders", "quads", "calves"],
     },
+    # Words in a workout's title or Strava type that make it count as cardio (the heart).
+    "cardio_keywords": ["run", "running", "ride", "cycling", "swim", "swimming", "cardio", "hiit", "walk",
+                        "hike", "row", "rowing", "handball", "trailrun", "virtualride", "virtualrun",
+                        "elliptical", "stairstepper"],
+    # Google Calendar colorId per category; empty means the defaults in categories.py.
+    "category_colors": {},
     # Default Todoist project for new tasks when an item has none.
     "todoist_default_project_id": "",
 }
@@ -65,6 +72,8 @@ def set_pref(db: Session, key: str, value) -> None:
     else:
         row.value = value
     db.commit()
+    if key == "category_colors":
+        apply_colors(value)
 
 
 def travel_minutes(prefs: dict, a: str, b: str) -> int:

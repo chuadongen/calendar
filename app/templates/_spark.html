@@ -1,0 +1,36 @@
+{# Sparkline over the trend weeks. values may contain none for weeks with no data. #}
+{% macro spark(trend, key, unit='', digits=1) -%}
+{%- set vals = trend | map(attribute=key) | list -%}
+{%- set known = vals | reject('none') | list -%}
+{%- if known | length >= 2 -%}
+{%- set lo = known | min -%}{%- set hi = known | max -%}
+{%- set span = (hi - lo) if hi > lo else 1 -%}
+{%- set n = vals | length -%}
+<svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none" role="img" aria-label="Last {{ n }} weeks">
+  {%- set ns = namespace(d='', pen=false) -%}
+  {%- for v in vals -%}
+    {%- if v is none -%}{%- set ns.pen = false -%}
+    {%- else -%}
+      {%- set x = (loop.index0 / (n - 1) * 114 + 3) | round(1) -%}
+      {%- set y = (29 - (v - lo) / span * 24) | round(1) -%}
+      {%- set ns.d = ns.d ~ ('L' if ns.pen else 'M') ~ x ~ ' ' ~ y ~ ' ' -%}{%- set ns.pen = true -%}
+    {%- endif -%}
+  {%- endfor -%}
+  <path d="{{ ns.d }}" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  {%- for v in vals -%}{%- if v is not none -%}
+    {%- set x = (loop.index0 / (n - 1) * 114 + 3) | round(1) -%}{%- set y = (29 - (v - lo) / span * 24) | round(1) -%}
+    <g class="spark-pt {{ 'last' if loop.last }}"><circle cx="{{ x }}" cy="{{ y }}" r="{{ 3 if loop.last else 7 }}"/><title>Week of {{ trend[loop.index0].week.strftime('%d %b') }}: {{ v | round(digits) }}{{ unit }}</title></g>
+  {%- endif -%}{%- endfor -%}
+</svg>
+{%- else -%}
+<div class="spark spark-empty small faint">Trend appears after two weeks</div>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro change(trend, key, unit='', digits=1) -%}
+{%- set a = trend[-1][key] -%}{%- set b = trend[-2][key] if trend | length > 1 else none -%}
+{%- if a is not none and b is not none -%}
+  {%- set d = (a - b) | round(digits) -%}
+  <span class="delta">{{ '▲' if d > 0 else ('▼' if d < 0 else '■') }} {{ (d | abs) if digits else (d | abs | int) }}{{ unit }} vs last week</span>
+{%- else -%}<span class="delta">No data last week</span>{%- endif -%}
+{%- endmacro %}

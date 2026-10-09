@@ -33,6 +33,14 @@
     </svg>
     <figcaption>Front</figcaption>
   </figure>
+  <figure class="heart-fig">
+    <svg viewBox="0 0 60 60" role="img" aria-label="Cardio: {{ cardio.sessions }} sessions, {{ cardio.minutes }} minutes">
+      <g class="muscle" fill="{{ shade(cardio.sessions) }}"><title>Cardio: {{ cardio.sessions }} session{{ '' if cardio.sessions == 1 else 's' }}, {{ cardio.minutes }} min</title>
+        <path d="M30 52 C12 40 4 30 4 19 C4 11 10 5 17.5 5 C23 5 27.5 8.5 30 13 C32.5 8.5 37 5 42.5 5 C50 5 56 11 56 19 C56 30 48 40 30 52 Z"/>
+      </g>
+    </svg>
+    <figcaption>Cardio<br><strong>{{ cardio.sessions }}</strong> · {{ cardio.minutes }} min</figcaption>
+  </figure>
   <figure>
     <svg viewBox="0 0 120 224" role="img" aria-label="Back of body, muscles shaded by sessions">
       {{ body() }}

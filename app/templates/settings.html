@@ -48,7 +48,23 @@
   </div>
 
   <form class="card" method="post" action="/settings">
-    <div class="card-head"><h2>Scheduling rules</h2><button class="btn primary" type="submit">Save</button></div>
+    <div class="card-head"><h2>Event colours and rules</h2><button class="btn primary" type="submit">Save</button></div>
+    <label>Colour for each type of event (the same 11 colours as Google Calendar)</label>
+    <div class="color-rows">
+      {% for key, c in categories.items() %}
+      <fieldset class="color-row">
+        <legend>{{ c.label }}</legend>
+        <div class="swatches">
+          {% for cid, (cname, hex) in gcal_colors.items() %}
+          <input type="radio" id="color-{{ key }}-{{ cid }}" name="color_{{ key }}" value="{{ cid }}" {{ 'checked' if c.gcal_color_id == cid }}>
+          <label for="color-{{ key }}-{{ cid }}" class="swatch" style="--sw: {{ hex }}" title="{{ cname }}"><span class="sr">{{ cname }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endfor %}
+    </div>
+    <p class="small faint">Events you create in Google Calendar are sorted by these colours on the dashboard. If two types share a colour, those events count as the one listed first.</p>
+
     <div class="row">
       <div class="field"><label>Wake up</label><input type="time" name="day_start" value="{{ prefs.day_start }}"></div>
       <div class="field"><label>Bedtime</label><input type="time" name="day_end" value="{{ prefs.day_end }}"></div>
