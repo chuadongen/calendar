@@ -34,6 +34,9 @@ def test_sleep_is_last_event_to_first_event_next_day():
               ev("Late call", 15, "00:30", "01:00"),  # before 4am counts as the 14th's night
               ev("Class", 15, "09:00", "11:00")]
     nights = dashboard.sleep_nights(events, WEEK)
+    assert nights[0]["date"] == date(2026, 10, 11)  # starts with the previous Sunday night
+    assert nights[-1]["date"] == date(2026, 10, 17)  # ends with Saturday night
+    nights = nights[1:]
     assert nights[0]["hours"] == 9.0  # Mon 22:30 to Tue 07:30
     # Tuesday night: no daytime events on Wednesday, so the gap is too long to be sleep.
     assert nights[1]["hours"] is None and nights[1]["bed"] == datetime(2026, 10, 14, 1, 30)

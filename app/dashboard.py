@@ -113,7 +113,11 @@ def _day_of(dt: datetime) -> date:
 
 
 def sleep_nights(events: list[Event], week: date) -> list[dict]:
-    """Estimated sleep per night: last event of a day to the first event of the next day."""
+    """Estimated sleep per night: last event of a day to the first event of the next day.
+
+    Covers the previous Sunday night to this Saturday night, so every night is complete
+    by the time you review on Sunday.
+    """
     last_end: dict[date, datetime] = {}
     first_start: dict[date, datetime] = {}
     for e in events:
@@ -121,7 +125,7 @@ def sleep_nights(events: list[Event], week: date) -> list[dict]:
         last_end[d] = max(last_end.get(d, e.end), e.end)
         first_start[d] = min(first_start.get(d, e.start), e.start)
     nights = []
-    for offset in range(7):
+    for offset in range(-1, 6):
         d = week + timedelta(days=offset)
         bed, wake = last_end.get(d), first_start.get(d + timedelta(days=1))
         hours = round((wake - bed).total_seconds() / 3600, 1) if bed and wake and wake > bed else None
@@ -226,7 +230,6 @@ def build(db: Session, week: date, prefs: dict, review: dict, calendar=None, tod
         except Exception as exc:
             errors.append(f"Could not read Todoist history: {exc}")
 
-    # One extra day so Sunday night's sleep can see Monday's first event.
     tl = gather_timeline(db, first, end + timedelta(days=1), prefs, calendar, td, completed)
     errors += tl.errors
 

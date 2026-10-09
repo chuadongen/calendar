@@ -72,7 +72,7 @@
     <div class="sleep-axis">
       {% for n in data.nights %}<span>{{ n.date.strftime('%a') }}<br><small class="faint">{{ n.bed.strftime('%H:%M') if n.bed else '' }}{% if n.bed and n.wake %}–{% endif %}{{ n.wake.strftime('%H:%M') if n.wake else '' }}</small></span>{% endfor %}
     </div>
-    <p class="small faint" style="margin-bottom:0">Estimated from your last event each day to your first event the next morning. ⚠ marks nights under 7 hours.</p>
+    <p class="small faint" style="margin-bottom:0">Sunday night to Saturday night, estimated from your last event each day to your first event the next morning. ⚠ marks nights under 7 hours.</p>
   </section>
 
   <section class="card span-rows">
