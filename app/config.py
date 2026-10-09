@@ -14,6 +14,8 @@ class Settings:
     todoist_token: str = os.getenv("TODOIST_API_TOKEN", "")
     google_client_secrets: str = os.getenv("GOOGLE_CLIENT_SECRETS", "data/google_client_secret.json")
     planner_calendar_name: str = os.getenv("PLANNER_CALENDAR_NAME", "Planner")
+    strava_client_id: str = os.getenv("STRAVA_CLIENT_ID", "")
+    strava_client_secret: str = os.getenv("STRAVA_CLIENT_SECRET", "")
 
     @property
     def tz(self) -> ZoneInfo:
@@ -22,6 +24,10 @@ class Settings:
     @property
     def db_path(self) -> Path:
         return self.data_dir / "planner.db"
+
+    @property
+    def strava_token_path(self) -> Path:
+        return self.data_dir / "strava_token.json"
 
     @property
     def google_token_path(self) -> Path:

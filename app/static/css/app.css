@@ -19,6 +19,7 @@
   --ok: #058527;
   --gcal-blue: #1a73e8;
   --gcal-now: #ea4335;
+  --sleep: rgba(60, 56, 80, 0.10);
   --shadow: 0 1px 2px rgba(31, 30, 29, 0.06), 0 4px 16px rgba(31, 30, 29, 0.06);
   --radius: 12px;
   --serif: "Tiempos Headline", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
@@ -41,6 +42,8 @@
     --accent-hover: #e08a6d;
     --accent-soft: #3d2c25;
     --gcal-blue: #8ab4f8;
+    --sleep: rgba(0, 0, 0, 0.28);
+    --ok: #5cc879;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
     color-scheme: dark;
   }
@@ -60,11 +63,14 @@
   --accent-hover: #e08a6d;
   --accent-soft: #3d2c25;
   --gcal-blue: #8ab4f8;
+    --sleep: rgba(0, 0, 0, 0.28);
+    --ok: #5cc879;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -243,6 +249,7 @@ table.simple td { border-bottom: 1px solid var(--border); padding: 8px; vertical
   --fc-neutral-bg-color: var(--surface-2);
   --fc-today-bg-color: transparent;
   --fc-now-indicator-color: var(--gcal-now);
+  --fc-non-business-color: var(--sleep);
   --fc-event-border-color: transparent;
   font-family: var(--sans);
   font-size: 12px;
@@ -276,6 +283,7 @@ table.simple td { border-bottom: 1px solid var(--border); padding: 8px; vertical
 .legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); background: var(--surface); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+.legend .sleep-sw { background: repeating-linear-gradient(135deg, var(--sleep) 0 3px, transparent 3px 6px), var(--sleep); border: 1px solid var(--border); }
 
 /* Modal and toast */
 
@@ -299,3 +307,73 @@ dialog .issues { font-size: 12px; color: var(--danger); margin: 0 0 12px; paddin
   #calendar { min-height: 720px; }
 }
 dialog .row { align-items: flex-start; }
+
+/* Dashboard */
+
+.dash-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.dash-grid .span-rows { grid-row: span 2; }
+.dash-grid .card + .card { margin-top: 0; }
+@media (max-width: 1180px) { .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .dash-grid { grid-template-columns: minmax(0, 1fr); } .dash-grid .span-rows { grid-row: auto; } }
+
+:root {
+  --heat-0: var(--surface-2);
+  --heat-1: color-mix(in srgb, var(--accent) 30%, var(--surface));
+  --heat-2: color-mix(in srgb, var(--accent) 62%, var(--surface));
+  --heat-3: var(--accent);
+  --sleep-bar: #5c6bc0;
+}
+.stat .unit { font-family: var(--sans); font-size: 14px; color: var(--muted); margin-left: 2px; }
+.stat .value { font-variant-numeric: tabular-nums; }
+.hbars { display: grid; gap: 8px; }
+.hbar { display: grid; grid-template-columns: 96px 1fr 48px; gap: 10px; align-items: center; font-size: 13px; }
+.hbar-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { height: 14px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.hbar-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.hbar-value { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sleep-chart { position: relative; height: 170px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; border-bottom: 1px solid var(--border-strong); padding-top: 18px; }
+.sleep-target { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); pointer-events: none; }
+.sleep-target span { position: absolute; right: 0; top: -18px; font-size: 11px; color: var(--muted); background: var(--surface); padding: 0 4px; }
+.sleep-col { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.sleep-val { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+.sleep-bar { width: 70%; max-width: 34px; background: var(--sleep-bar); border-radius: 4px 4px 0 0; min-height: 2px; }
+.sleep-bar.short { background: repeating-linear-gradient(135deg, var(--sleep-bar) 0 4px, color-mix(in srgb, var(--sleep-bar) 55%, var(--surface)) 4px 8px); }
+.sleep-axis { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center; font-size: 12px; margin-top: 6px; line-height: 1.3; }
+.anatomy { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 360px; margin: 0 auto; }
+.anatomy figure { margin: 0; text-align: center; }
+.anatomy svg { width: 100%; height: auto; max-height: 260px; }
+.anatomy figcaption { font-size: 12px; color: var(--muted); }
+.anatomy .silhouette { fill: var(--surface-2); stroke: var(--border-strong); stroke-width: 0.8; }
+.anatomy .muscle { stroke: var(--border-strong); stroke-width: 0.8; }
+.anatomy .muscle:hover { stroke: var(--text); stroke-width: 1.4; }
+.heat-legend { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 8px; }
+.heat-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.heat-legend i { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong); }
+.goal-row { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.goal-row:last-child { border-bottom: 0; }
+.goal-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.energy-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.energy-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 52px; }
+.energy-emoji { font-size: 28px; line-height: 1.2; }
+
+/* Review: Todoist style week */
+
+.day-group + .day-group { margin-top: 14px; }
+.day-head { display: flex; align-items: baseline; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; }
+.day-head .muted { font-weight: 400; }
+button.check { cursor: pointer; padding: 0; }
+button.check:hover::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid var(--prio); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+button.check { position: relative; }
+button.check.done:hover::after { border-color: #fff; }
+.task.is-done .task-title { text-decoration: line-through; color: var(--muted); }
+.task.pending { opacity: 0.5; }
+
+/* Retro energy picker */
+
+.emoji-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+.emoji-pick label { margin: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); min-width: 62px; color: var(--muted); font-weight: 400; }
+.emoji-pick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.emoji-pick .e { font-size: 26px; line-height: 1.2; filter: grayscale(0.7); }
+.emoji-pick input:checked + label, .emoji-pick label:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.emoji-pick input:checked + label .e { filter: none; }
+.emoji-pick input:focus-visible + label { outline: 2px solid var(--accent); }

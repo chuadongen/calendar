@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Sprint review</h1>
-    <p class="muted">What actually got done this week, straight from Todoist.</p>
+    <p class="muted">Tick tasks off here and they are completed in Todoist too.</p>
   </div>
   {% include "_week_nav.html" %}
 </div>
@@ -40,8 +40,11 @@
         <span class="dot" style="background: {{ categories[g.area if g.area in categories else 'life'].color }}; margin-top: 7px"></span>
         <div class="task-body">
           <div class="task-title">{{ g.title }}</div>
+          {% set total = g.done + g.open %}
+          <div class="bar" style="margin: 6px 0 2px"><span style="width: {{ (g.done / total * 100) | round(1) if total else 0 }}%"></span></div>
           <div class="task-meta">
-            <span>{{ g.done }} task{{ '' if g.done == 1 else 's' }} done</span>
+            <span>{{ g.done }} of {{ total }} tasks done</span>
+            {% if g.weekly_hours %}<span>{{ g.planned_hours }}h of {{ '%g' % g.weekly_hours }}h planned</span>{% endif %}
             {% if g.target %}<span class="label">Target: {{ g.target }}</span>{% endif %}
             <span class="project">{{ g.area }}</span>
           </div>
@@ -54,23 +57,28 @@
 
   <div>
     <div class="card">
-      <div class="card-head"><h2>Completed</h2><span class="pill">{{ data.completed | length }}</span></div>
-      <ul class="task-list">
-        {% for t in data.completed[:40] %}
-        <li class="task">
-          <span class="check done" style="--prio: {{ priority_colors[5 - (t.priority or 1)] if t.priority else '#808080' }}"></span>
-          <div class="task-body">
-            <div class="task-title" style="text-decoration: line-through; color: var(--muted)">{{ t.content }}</div>
-            <div class="task-meta">
-              {% if t.completed_at %}<span>{{ t.completed_at[:10] }}</span>{% endif %}
-              {% for l in t.labels or [] %}<span class="label">@{{ l }}</span>{% endfor %}
+      <div class="card-head"><h2>This week's tasks</h2><span class="pill">{{ data.completed | length }} done · {{ data.open_total }} open</span></div>
+      {% for day in data.days %}
+      <div class="day-group">
+        <div class="day-head">{{ day.date.strftime('%a %d %b') }}{% if day.date == today %} <span class="muted">· Today</span>{% endif %}<span class="muted" style="margin-left:auto">{{ day.tasks | selectattr('done') | list | length }}/{{ day.tasks | length }}</span></div>
+        <ul class="task-list">
+          {% for t in day.tasks %}
+          <li class="task {{ 'is-done' if t.done }}" data-task="{{ t.id }}">
+            <button type="button" class="check {{ 'done' if t.done }}" style="--prio: {{ priority_colors[t.priority] }}" aria-label="{{ 'Mark as not done' if t.done else 'Mark as done' }}" aria-pressed="{{ 'true' if t.done else 'false' }}"></button>
+            <div class="task-body">
+              <div class="task-title">{{ t.content }}</div>
+              <div class="task-meta">
+                {% if t.time %}<span class="when">{{ t.time }}</span>{% endif %}
+                {% for l in t.labels %}<span class="label">@{{ l }}</span>{% endfor %}
+              </div>
             </div>
-          </div>
-        </li>
-        {% else %}
-        <li class="muted" style="list-style:none">Nothing completed yet this week.</li>
-        {% endfor %}
-      </ul>
+          </li>
+          {% else %}
+          <li class="small faint" style="list-style:none; padding: 6px 0">No tasks</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
     </div>
     <div class="card">
       <div class="card-head"><h2>Coming up</h2></div>
@@ -91,7 +99,38 @@
   </div>
 </div>
 
-<div style="margin-top: 20px; display:flex; justify-content:flex-end">
+<div style="margin-top: 20px; display:flex; justify-content:space-between">
+  <a class="btn" href="/dashboard?week={{ week }}">← Dashboard</a>
   <a class="btn primary" href="/retro?week={{ week }}">Next: retrospective →</a>
 </div>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Tick or untick a task; Todoist is updated straight away.
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-task] button.check");
+    if (!btn) return;
+    const row = btn.closest("[data-task]");
+    const done = !btn.classList.contains("done");
+    row.classList.add("pending");
+    try {
+      const res = await fetch(`/api/tasks/${row.dataset.task}/state`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+      btn.classList.toggle("done", done);
+      row.classList.toggle("is-done", done);
+      btn.setAttribute("aria-pressed", String(done));
+      btn.setAttribute("aria-label", done ? "Mark as not done" : "Mark as done");
+    } catch (err) {
+      const t = document.getElementById("toast");
+      t.textContent = `Could not update Todoist: ${err.message}`;
+      t.hidden = false;
+      setTimeout(() => (t.hidden = true), 4000);
+    } finally {
+      row.classList.remove("pending");
+    }
+  });
+</script>
 {% endblock %}

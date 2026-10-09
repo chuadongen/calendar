@@ -222,3 +222,20 @@ def backlog_from_goals(week: str | None = None, db: Session = Depends(get_sessio
             added += 1
     db.commit()
     return {"added": added}
+
+
+class TaskState(BaseModel):
+    done: bool
+
+
+@router.post("/tasks/{task_id}/state")
+def set_task_state(task_id: str, body: TaskState):
+    """Tick or untick a Todoist task from the review page."""
+    from app.integrations import todoist
+
+    td = todoist.Todoist()
+    try:
+        td.close_task(task_id) if body.done else td.reopen_task(task_id)
+    except todoist.TodoistError as exc:
+        raise HTTPException(502, str(exc))
+    return {"id": task_id, "done": body.done}

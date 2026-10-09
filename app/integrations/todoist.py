@@ -75,6 +75,12 @@ class Todoist:
     def delete_task(self, task_id: str) -> None:
         self._request("DELETE", f"/tasks/{task_id}")
 
+    def close_task(self, task_id: str) -> None:
+        self._request("POST", f"/tasks/{task_id}/close")
+
+    def reopen_task(self, task_id: str) -> None:
+        self._request("POST", f"/tasks/{task_id}/reopen")
+
 
 def _utc(dt: datetime) -> str:
     if dt.tzinfo is None:
@@ -110,6 +116,14 @@ def task_start(task: dict) -> datetime | None:
     if dt.tzinfo is None:
         return dt  # floating time is already local
     return to_local_naive(dt)
+
+
+def due_date(task: dict) -> str:
+    """The due date as YYYY-MM-DD in local time, or "" for undated tasks."""
+    start = task_start(task)
+    if start is not None:
+        return start.date().isoformat()
+    return ((task.get("due") or {}).get("date") or "")[:10]
 
 
 def task_duration(task: dict, default: int = 30) -> int:

@@ -18,6 +18,8 @@
   const save = () => {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
   };
+  // Ticks made on the review page in an earlier visit.
+  window.demoTaskStates = () => state.tasks || {};
   window.resetDemo = () => {
     try { localStorage.removeItem(KEY); } catch (e) {}
     location.reload();
@@ -217,6 +219,11 @@
         i.dirty = false;
       });
       return { events, tasks, removed, errors: [] };
+    }
+    if ((m = path.match(/^\/api\/tasks\/([^/]+)\/state$/))) {
+      state.tasks = state.tasks || {};
+      state.tasks[m[1]] = !!body.done;
+      return { id: m[1], done: !!body.done };
     }
     if (path === "/goals/export") return SEED.export_text;
     throw [404, `Not available in the demo: ${path}`];

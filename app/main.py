@@ -8,12 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app import dashboard
 from app import goals as goals_svc
 from app import planning, review
 from app.categories import CATEGORIES, PRIORITY_COLORS
 from app.config import settings
 from app.db import get_session, init_db
-from app.integrations import gcal, todoist
+from app.integrations import gcal, strava, todoist
 from app.models import AREAS, Goal, GoalVersion, Milestone, Retro
 from app.prefs import get_prefs, set_pref
 from app.routers import api
@@ -32,16 +33,18 @@ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 app.include_router(api.router)
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.globals.update(categories=CATEGORIES, priority_colors=PRIORITY_COLORS, areas=AREAS,
-                             delta=lambda days: timedelta(days=days))
+                             delta=lambda days: timedelta(days=days), energy=dashboard.ENERGY,
+                             muscles=dashboard.MUSCLES)
 
 # OAuth state between redirect and callback (single user, in memory is fine).
 _oauth: dict[str, str | None] = {}
 
 
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
-    from app.weeks import current_week, planning_week
+    from app.weeks import current_week, planning_week, today
 
     ctx.setdefault("nav", name.split(".")[0])
+    ctx.setdefault("today", today())
     ctx.setdefault("this_week", current_week())
     ctx.setdefault("next_week", planning_week())
     return templates.TemplateResponse(request, name, ctx)
@@ -58,7 +61,23 @@ def _week(value: str | None, default: date) -> date:
 
 @app.get("/")
 def home():
-    return RedirectResponse("/review")
+    return RedirectResponse("/dashboard")
+
+
+# Dashboard
+
+
+@app.get("/dashboard")
+def dashboard_page(request: Request, week: str | None = None, db: Session = Depends(get_session)):
+    from app.weeks import current_week
+
+    wk = _week(week, current_week())
+    rev = review.week_review(db, wk)
+    prefs = get_prefs(db)
+    data = dashboard.build(db, wk, prefs, rev)
+    return render(request, "dashboard.html", week=wk, data=data, review=rev,
+                  sleep_target=dashboard.sleep_target(prefs),
+                  prev_week=wk - timedelta(days=7), following_week=wk + timedelta(days=7))
 
 
 # Review
@@ -252,7 +271,9 @@ def settings_page(request: Request, db: Session = Depends(get_session)):
             errors.append(f"Todoist: {exc}")
     return render(request, "settings.html", prefs=prefs, calendars=calendars, projects=projects,
                   errors=errors, google_connected=gcal.connected(), google_secrets=gcal.secrets_present(),
-                  todoist_configured=td.configured, redirect_uri=gcal.redirect_uri(), cfg=settings)
+                  todoist_configured=td.configured, redirect_uri=gcal.redirect_uri(), cfg=settings,
+                  strava_configured=strava.configured(), strava_connected=strava.connected(),
+                  strava_redirect=strava.redirect_uri())
 
 
 @app.post("/settings")
@@ -303,6 +324,26 @@ def google_callback(request: Request):
     _oauth.clear()
     api.clear_busy_cache()
     return RedirectResponse("/settings?google=connected", status_code=303)
+
+
+@app.get("/auth/strava")
+def strava_auth():
+    import secrets
+
+    if not strava.configured():
+        raise HTTPException(400, "Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in .env first.")
+    _oauth["strava_state"] = secrets.token_urlsafe(16)
+    return RedirectResponse(strava.auth_url(_oauth["strava_state"]))
+
+
+@app.get("/auth/strava/callback")
+def strava_callback(code: str = "", state: str = "", error: str = ""):
+    if error or not code:
+        raise HTTPException(400, f"Strava did not authorise the app: {error or 'no code returned'}")
+    if state != _oauth.pop("strava_state", None):
+        raise HTTPException(400, "OAuth state mismatch, start again from Settings.")
+    strava.finish_auth(code)
+    return RedirectResponse("/settings?strava=connected", status_code=303)
 
 
 @app.get("/healthz", response_class=PlainTextResponse)

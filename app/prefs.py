@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 from app.models import Setting
 
 DEFAULTS: dict = {
-    # Hours of the day the scheduler may place blocks in.
-    "day_start": "08:00",
+    # Wake-up time and bedtime. Blocks go between them; the rest of the day is
+    # shaded on the planning calendar as sleep.
+    "day_start": "07:00",
     "day_end": "23:00",
     # Gap kept between any two blocks, in minutes.
     "buffer_min": 10,
@@ -18,7 +19,7 @@ DEFAULTS: dict = {
         "school": ["09:00", "18:00"],
         "work": ["10:00", "18:00"],
         "fitness": ["17:00", "21:00"],
-        "play": ["19:00", "23:00"],
+        "social": ["18:00", "23:00"],
     },
     # Travel time between named places, in minutes. Keys are "A|B" (either order).
     "travel_minutes": {"home|smu": 50, "smu|gym": 15, "home|gym": 20},
@@ -29,6 +30,22 @@ DEFAULTS: dict = {
     "ignored_calendar_ids": [],
     # Id of the calendar this app writes events to. Created on first commit if empty.
     "planner_calendar_id": "",
+    # Words in a workout's title (calendar block or Strava activity) and the muscles they train.
+    "muscle_keywords": {
+        "push": ["chest", "shoulders", "triceps"],
+        "pull": ["back", "biceps", "forearms"],
+        "leg": ["quads", "hamstrings", "glutes", "calves"],
+        "upper": ["chest", "back", "shoulders", "biceps", "triceps"],
+        "lower": ["quads", "hamstrings", "glutes", "calves"],
+        "full body": ["chest", "back", "shoulders", "quads", "glutes", "abs"],
+        "chest": ["chest"], "back": ["back"], "shoulder": ["shoulders"], "arm": ["biceps", "triceps"],
+        "core": ["abs"], "abs": ["abs"], "glute": ["glutes"],
+        "run": ["quads", "hamstrings", "calves"], "running": ["quads", "hamstrings", "calves"],
+        "ride": ["quads", "glutes", "calves"], "cycling": ["quads", "glutes", "calves"],
+        "swim": ["back", "shoulders", "chest"], "swimming": ["back", "shoulders", "chest"],
+        "climb": ["back", "biceps", "forearms"], "climbing": ["back", "biceps", "forearms"],
+        "handball": ["shoulders", "quads", "calves"],
+    },
     # Default Todoist project for new tasks when an item has none.
     "todoist_default_project_id": "",
 }

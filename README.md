@@ -15,10 +15,16 @@ It runs on a home server and is reached over Tailscale. There is no login screen
 
 ## The Sunday flow
 
-1. **Review**: completed Todoist tasks for the week, grouped by goal. A task counts towards a goal when it has the goal's label (or is in the goal's project).
-2. **Retrospective**: what went well, what did not, and one change. Each week's entry is saved.
-3. **Goals**: *Copy context* gives a markdown snapshot (goals, milestones, this week's results, recent retros, and the reply schema). Paste it into Claude or Gemini and discuss. Then paste the chat's JSON reply into *Preview changes*, check the changes, and approve. Each approval saves a new version you can look back at.
-4. **Plan**:
+1. **Dashboard**: the week at a glance.
+   * **Where the time went:** hours per category. Plan blocks keep their own category; other Google Calendar events are sorted by colour (Grape = school and work, Tangerine = exercise, Banana = social, Basil = travel, Lavender = revision, Peacock = life).
+   * **Sleep:** estimated per night from your last event of the day to your first event the next morning. Events before 4am count towards the previous day. Gaps over 14 hours are left blank, because they mean an empty calendar rather than sleep.
+   * **Training:** Strava activities plus Exercise blocks that Strava did not log, and a front and back muscle map shaded by how many sessions hit each muscle. Muscles come from words in the workout title (push, pull, legs, run and so on).
+   * **Goals** and **Energy:** task progress per goal, and the energy trend from your retrospectives.
+2. **Review**: this week's Todoist tasks, day by day. Tick or untick them and Todoist is updated straight away. Each goal shows how many of its tasks are done. A task counts towards a goal when it has the goal's label (or is in the goal's project).
+3. **Retrospective**: what went well, what did not, one change, and your energy as an emoji. Each week's entry is saved.
+4. **Goals**: *Copy context* gives a markdown snapshot (goals, milestones, this week's results, recent retros, and the reply schema). Paste it into Claude or Gemini and discuss. Then paste the chat's JSON reply into *Preview changes*, check the changes, and approve. Each approval saves a new version you can look back at.
+5. **Plan**:
+   * Hours between bedtime and wake-up (23:00 to 07:00 by default, set in Settings) are shaded as sleep.
    * *From goals* adds backlog blocks that cover each goal's weekly hours.
    * *Import Todoist* pulls open tasks that have no time yet.
    * Drag blocks onto the week, or click and drag on empty space to create one. *Auto-fill* places the rest without clashes.
@@ -52,7 +58,11 @@ Put that URL in `.env` as `BASE_URL`.
 4. Download the JSON to `data/google_client_secret.json`.
 5. Open **Settings → Connect**.
 
-### 4. Run
+### 4. Strava (optional)
+
+Create an API application at strava.com/settings/api, set its Authorization Callback Domain to the host part of `BASE_URL`, and put its client id and secret in `.env`. Then open **Settings → Connect** next to Strava.
+
+### 5. Run
 
 ```bash
 cp .env.example .env    # then fill it in

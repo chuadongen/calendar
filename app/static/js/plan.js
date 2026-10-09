@@ -1,6 +1,6 @@
 // Planning screen: Todoist-style backlog on the left, Google Calendar-style week on the right.
 (() => {
-  const { week, dayStart, categories, priorityColors } = window.PLAN;
+  const { week, dayStart, dayEnd, categories, priorityColors } = window.PLAN;
   const $ = (sel) => document.querySelector(sel);
   const backlogEl = $("#backlog");
   const listEl = $("#backlog-list");
@@ -162,6 +162,8 @@
     slotLabelInterval: "01:00",
     slotLabelFormat: { hour: "numeric", meridiem: "short" },
     scrollTime: dayStart,
+    // Hours outside wake-up to bedtime are shaded as sleep.
+    businessHours: { daysOfWeek: [0, 1, 2, 3, 4, 5, 6], startTime: dayStart, endTime: dayEnd },
     snapDuration: "00:15:00",
     editable: true,
     droppable: true,

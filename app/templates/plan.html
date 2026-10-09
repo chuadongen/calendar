@@ -42,6 +42,7 @@
     <div class="legend">
       {% for k, c in categories.items() %}<span><i class="sw" style="background: {{ c.color }}"></i>{{ c.label }}</span>{% endfor %}
       <span><i class="sw" style="background: var(--surface-2); border: 1px solid var(--border-strong)"></i>Existing (locked)</span>
+      <span><i class="sw sleep-sw"></i>Sleep {{ prefs.day_end }} to {{ prefs.day_start }}</span>
       <span>◯ Todoist task · dashed = not committed yet</span>
     </div>
   </section>
@@ -84,6 +85,7 @@
   window.PLAN = {
     week: "{{ week }}",
     dayStart: "{{ prefs.day_start }}",
+    dayEnd: "{{ prefs.day_end }}",
     categories: {{ categories | tojson }},
     priorityColors: {{ priority_colors | tojson }},
   };

@@ -28,7 +28,7 @@ def test_pages_render(client):
 def test_plan_item_lifecycle(client):
     r = client.post(f"/api/plan/items?week={WEEK}", json={"title": "HW3", "kind": "task", "duration_min": 90, "category": "school"})
     item = r.json()
-    assert item["start"] is None and item["color"] == "#3F51B5"
+    assert item["start"] is None and item["color"] == "#8E24AA"
 
     r = client.patch(f"/api/plan/items/{item['id']}", json={"start": "2026-10-13T01:00:00.000Z"})
     assert r.json()["start"] == "2026-10-13T09:00:00+08:00"
@@ -73,3 +73,15 @@ def test_retro_and_goal_import_flow(client):
     assert "Add goal" in preview.text and "Run 5k" in preview.text
     client.post("/goals/import/apply", data={"payload": payload})
     assert "Run 5k" in client.get("/goals").text
+
+
+def test_dashboard_renders_and_task_toggle(client, monkeypatch):
+    assert client.get(f"/dashboard?week={WEEK}").status_code == 200
+    calls = []
+    from app.integrations import todoist
+
+    monkeypatch.setattr(todoist.Todoist, "close_task", lambda self, tid: calls.append(("close", tid)))
+    monkeypatch.setattr(todoist.Todoist, "reopen_task", lambda self, tid: calls.append(("reopen", tid)))
+    assert client.post("/api/tasks/42/state", json={"done": True}).json() == {"id": "42", "done": True}
+    client.post("/api/tasks/42/state", json={"done": False})
+    assert calls == [("close", "42"), ("reopen", "42")]

@@ -30,14 +30,16 @@
       <textarea id="notes" name="notes">{{ retro.notes if retro }}</textarea>
     </div>
     <div class="row">
-      <div class="field" style="flex: 0 0 180px">
-        <label for="energy">Energy this week</label>
-        <select id="energy" name="energy">
-          <option value="">Not set</option>
-          {% for n in range(1, 6) %}<option value="{{ n }}" {{ 'selected' if retro and retro.energy == n }}>{{ n }} / 5</option>{% endfor %}
-        </select>
+      <div class="field" style="flex: 1 1 auto">
+        <label>Energy this week</label>
+        <div class="emoji-pick" role="radiogroup" aria-label="Energy this week">
+          {% for n, (emo, name) in energy.items() %}
+          <input type="radio" id="energy-{{ n }}" name="energy" value="{{ n }}" {{ 'checked' if retro and retro.energy == n }}>
+          <label for="energy-{{ n }}"><span class="e">{{ emo }}</span>{{ name }}</label>
+          {% endfor %}
+        </div>
       </div>
-      <div class="field" style="flex: 1; text-align: right">
+      <div class="field" style="flex: 0 0 auto; text-align: right">
         <button class="btn primary" type="submit">Save retrospective</button>
       </div>
     </div>
@@ -47,7 +49,7 @@
     <div class="card-head"><h2>Past weeks</h2></div>
     {% for r in history %}
       <details {{ 'open' if loop.first and r.week_start != week }} style="padding: 8px 0; border-bottom: 1px solid var(--border)">
-        <summary><strong style="color: var(--text)">Week of {{ r.week_start.strftime('%d %b %Y') }}</strong>{% if r.energy %} · energy {{ r.energy }}/5{% endif %}</summary>
+        <summary><strong style="color: var(--text)">Week of {{ r.week_start.strftime('%d %b %Y') }}</strong>{% if r.energy in energy %} · {{ energy[r.energy][0] }} {{ energy[r.energy][1] }}{% endif %}</summary>
         <div class="small" style="margin-top: 8px">
           {% if r.went_well %}<p><strong>Went well.</strong> {{ r.went_well }}</p>{% endif %}
           {% if r.went_badly %}<p><strong>Went badly.</strong> {{ r.went_badly }}</p>{% endif %}

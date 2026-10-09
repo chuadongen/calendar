@@ -22,7 +22,7 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import main, planning, review  # noqa: E402
+from app import dashboard, main, planning, review  # noqa: E402
 from app.categories import CATEGORIES  # noqa: E402
 from app.db import get_session, init_db  # noqa: E402
 from app.models import Goal, Milestone, PlanItem, Retro  # noqa: E402
@@ -98,13 +98,64 @@ RETROS = [
 ]
 
 
+# This week's calendar for the dashboard: (title, day, start, end, Google colorId).
+THIS_WEEK_EVENTS = [
+    ("Algorithms lecture", 0, "12:00", "15:15", "3"), ("Algorithms lecture", 2, "12:00", "15:15", "3"),
+    ("Databases seminar", 1, "08:15", "11:30", "3"), ("Databases seminar", 3, "08:15", "11:30", "3"),
+    ("Bus to SMU", 0, "10:50", "11:40", "10"), ("Bus to SMU", 1, "07:20", "08:10", "10"),
+    ("Bus to SMU", 2, "10:50", "11:40", "10"), ("Bus to SMU", 3, "07:20", "08:10", "10"),
+    ("Revise Algorithms week 5", 0, "08:00", "10:00", "1"), ("Revise Databases", 2, "08:30", "10:15", "1"),
+    ("Project group meeting", 3, "15:30", "17:00", "3"), ("Startup society sharing", 2, "19:00", "21:00", "3"),
+    ("Gym: push day", 0, "17:30", "18:45", "6"), ("Gym: legs", 3, "18:00", "19:00", "6"),
+    ("Dinner with friends", 1, "19:00", "22:30", "5"), ("Supper", 4, "22:00", "01:30", "5"),
+    ("Family dinner", 6, "18:00", "20:00", "7"), ("Brunch", 5, "10:30", "12:00", "5"),
+    ("Coffee chat: senior engineer", 4, "14:00", "15:00", "3"), ("Laundry and groceries", 5, "15:00", "16:30", "7"),
+    ("Sunday review and planning", 6, "21:30", "22:45", "7"), ("Bus to SMU", 4, "13:10", "14:00", "10"),
+    ("Project call", 0, "21:30", "23:40", "3"), ("Supper after sharing", 2, "21:15", "00:20", "5"),
+    ("Movie night", 3, "21:00", "23:30", "5"), ("Movie with friends", 5, "20:00", "23:50", "5"),
+    ("Gym: pull day", 5, "08:30", "09:45", "6"),
+    ("Morning run", 6, "08:00", "08:45", "6"),
+]
+NEXT_MONDAY_FIRST = ("Revise Algorithms week 6", 7, "07:45", "09:00", "1")
+
+
+class FakeCalendar:
+    def events(self, calendar_id, start, end):
+        out = []
+        for title, day, s, e, color in THIS_WEEK_EVENTS + [NEXT_MONDAY_FIRST]:
+            a = at(THIS, day, s)
+            b = at(THIS, day, e)
+            if b <= a:
+                b += timedelta(days=1)
+            out.append({"summary": title, "colorId": color,
+                        "start": {"dateTime": to_aware(a).isoformat()}, "end": {"dateTime": to_aware(b).isoformat()}})
+        return out
+
+
+STRAVA = [
+    {"name": "Push day", "type": "WeightTraining", "start": at(THIS, 0, "17:35"), "minutes": 68, "km": 0, "source": "strava"},
+    {"name": "Morning run", "type": "Run", "start": at(THIS, 6, "08:02"), "minutes": 41, "km": 6.8, "source": "strava"},
+]
+
+OPEN_THIS_WEEK = [  # (title, label, day, time or "", priority in Todoist API terms)
+    ("Algorithms problem set 5", "school", 4, "21:00", 4), ("Book InBody scan", "fitness", 5, "", 2),
+    ("Write notes from coffee chat", "career", 4, "16:00", 3), ("Plan next week", "life", 6, "21:00", 3),
+]
+
+
 class FakeTodoist:
     configured = True
 
     def completed_between(self, since, until):
         return [{"id": str(n), "task_id": str(n), "content": c, "labels": [l] if l else [], "priority": p,
-                 "completed_at": (THIS + timedelta(days=n % 6)).isoformat() + "T10:00:00Z"}
+                 "due": {"date": (THIS + timedelta(days=n % 5)).isoformat()},
+                 "completed_at": (THIS + timedelta(days=n % 5)).isoformat() + "T10:00:00Z"}
                 for n, (c, l, p) in enumerate(COMPLETED)]
+
+    def open_tasks(self):
+        return [{"id": f"o{n}", "content": c, "labels": [l], "priority": p,
+                 "due": {"date": (THIS + timedelta(days=d)).isoformat() + (f"T{t}:00" if t else "")}}
+                for n, (c, l, d, t, p) in enumerate(OPEN_THIS_WEEK)]
 
     def projects(self):
         return [{"id": "inbox", "name": "Inbox"}, {"id": "school", "name": "School"}]
@@ -161,10 +212,14 @@ def build() -> None:
     planning.gather_busy = lambda *a, **k: sample_busy
     review.todoist.Todoist = FakeTodoist
     main.todoist.Todoist = FakeTodoist
+    dashboard.gcal.connected = lambda: True
+    dashboard.gcal.Calendar = FakeCalendar
+    dashboard.strava.connected = lambda: True
+    dashboard.strava.activities = lambda begin, end: STRAVA
 
     pages = {}
     with TestClient(main.app) as client:
-        for name, path in [("review", f"/review?week={THIS}"), ("retro", f"/retro?week={THIS}"),
+        for name, path in [("dashboard", f"/dashboard?week={THIS}"), ("review", f"/review?week={THIS}"), ("retro", f"/retro?week={THIS}"),
                            ("goals", "/goals"), ("plan", f"/plan?week={NEXT}"), ("settings", "/settings")]:
             resp = client.get(path)
             resp.raise_for_status()
@@ -180,13 +235,14 @@ def build() -> None:
         body = re.sub(r'<div class="toast" id="toast" hidden></div>', "", body)
         sections.append(main_tag.replace("<main ", f'<main data-page="{name}" hidden ') + body + "</main>")
 
+    review_script = extract(pages["review"], r'(<script>\s*// Tick or untick.*?</script>)')
     goals_script = extract(pages["goals"], r'(<script>\s*document\.getElementById\("copy-context"\).*?</script>)')
     plan_config = extract(pages["plan"], r"(<script>\s*window\.PLAN = .*?</script>)")
 
     items = [{k: i[k] for k in ("id", "title", "kind", "category", "duration_min", "start", "location",
                                  "priority", "goal_id", "notes", "origin")} for i in api_items]
     seed_data = {
-        "seedVersion": f"{NEXT}-1",
+        "seedVersion": f"{NEXT}-2",
         "week": NEXT.isoformat(),
         "prefs": get_prefs(db),
         "categories": CATEGORIES,
@@ -228,6 +284,7 @@ html, body {{ height: 100%; }}
 {plan_config}
 <script>{safe(plan_js)}</script>
 {goals_script}
+{review_script}
 """
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(doc)

@@ -4,6 +4,7 @@
 <div class="page-head"><div><h1>Settings</h1><p class="muted">Connections and the rules the scheduler follows.</p></div></div>
 {% if request.query_params.get('saved') %}<div class="notice ok">Settings saved.</div>{% endif %}
 {% if request.query_params.get('google') %}<div class="notice ok">Google Calendar connected.</div>{% endif %}
+{% if request.query_params.get('strava') %}<div class="notice ok">Strava connected.</div>{% endif %}
 {% for e in errors %}<div class="notice error">{{ e }}</div>{% endfor %}
 
 <div class="grid-2">
@@ -24,6 +25,19 @@
         {% if google_secrets %}<a class="btn" href="/auth/google">{{ 'Reconnect' if google_connected else 'Connect' }}</a>{% endif %}
       </li>
       <li class="task">
+        <span class="check {{ 'done' if strava_connected }}" style="--prio: #fc4c02"></span>
+        <div class="task-body">
+          <div class="task-title">Strava</div>
+          <div class="task-meta">
+            {% if strava_connected %}<span class="when">Connected</span>
+            {% elif not strava_configured %}<span>Set <code>STRAVA_CLIENT_ID</code> and <code>STRAVA_CLIENT_SECRET</code> in <code>.env</code></span>
+            {% else %}<span>Not connected</span>{% endif %}
+          </div>
+          <div class="task-meta">Callback domain to register: <code>{{ strava_redirect.split('/')[2] }}</code></div>
+        </div>
+        {% if strava_configured %}<a class="btn" href="/auth/strava">{{ 'Reconnect' if strava_connected else 'Connect' }}</a>{% endif %}
+      </li>
+      <li class="task">
         <span class="check {{ 'done' if todoist_configured }}" style="--prio: #e44332"></span>
         <div class="task-body">
           <div class="task-title">Todoist</div>
@@ -36,8 +50,8 @@
   <form class="card" method="post" action="/settings">
     <div class="card-head"><h2>Scheduling rules</h2><button class="btn primary" type="submit">Save</button></div>
     <div class="row">
-      <div class="field"><label>Day starts</label><input type="time" name="day_start" value="{{ prefs.day_start }}"></div>
-      <div class="field"><label>Day ends</label><input type="time" name="day_end" value="{{ prefs.day_end }}"></div>
+      <div class="field"><label>Wake up</label><input type="time" name="day_start" value="{{ prefs.day_start }}"></div>
+      <div class="field"><label>Bedtime</label><input type="time" name="day_end" value="{{ prefs.day_end }}"></div>
       <div class="field"><label>Buffer between blocks (min)</label><input type="number" min="0" name="buffer_min" value="{{ prefs.buffer_min }}"></div>
     </div>
 

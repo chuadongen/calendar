@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
+from app.dashboard import ENERGY
 from app.models import AREAS, Goal, GoalVersion, Milestone, Retro
 
 GOAL_FIELDS = ("area", "title", "metric", "target", "deadline", "notes",
@@ -209,7 +210,8 @@ def export_context(db: Session, week: date, review: dict | None = None) -> str:
 
     lines += ["", "## Recent retrospectives"]
     for r in retros:
-        lines.append(f"### Week of {r.week_start:%d %b}" + (f" (energy {r.energy}/5)" if r.energy else ""))
+        mood = ENERGY.get(r.energy)
+        lines.append(f"### Week of {r.week_start:%d %b}" + (f" (energy {r.energy}/5, {mood[1].lower()})" if mood else ""))
         lines += [f"- Went well: {r.went_well or '-'}", f"- Went badly: {r.went_badly or '-'}",
                   f"- Change: {r.change or '-'}"]
     if not retros:

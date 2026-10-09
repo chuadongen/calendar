@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Sprint{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Week at a glance</h1>
+    <p class="muted">Worked out from your calendar, Todoist, Strava and retrospectives.</p>
+  </div>
+  {% include "_week_nav.html" %}
+</div>
+{% for e in data.errors %}<div class="notice">{{ e }}</div>{% endfor %}
+
+{% set t = data.training %}
+{% set latest = data.energy[-1] if data.energy else none %}
+<div class="stats">
+  <div class="stat">
+    <div class="value">{{ data.total_hours }}<span class="unit">h</span></div>
+    <div class="label">Scheduled time</div>
+  </div>
+  <div class="stat">
+    <div class="value">{{ data.sleep_avg if data.sleep_avg is not none else '–' }}<span class="unit">h</span></div>
+    <div class="label">Average sleep{% if data.short_nights %} · {{ data.short_nights }} night{{ '' if data.short_nights == 1 else 's' }} under 7h{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="value">{{ data.tasks.done }}<span class="unit"> / {{ data.tasks.done + data.tasks.open }}</span></div>
+    <div class="label">Tasks done{% if data.tasks.rate is not none %} · {{ data.tasks.rate }}%{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="value">{{ t.sessions | length }}</div>
+    <div class="label">Workouts · {{ (t.minutes / 60) | round(1) }}h</div>
+  </div>
+  <div class="stat">
+    <div class="value">{{ latest.emoji if latest else '–' }}</div>
+    <div class="label">Energy{% if latest %} · {{ latest.label }}{% endif %}</div>
+  </div>
+</div>
+
+<div class="dash-grid">
+  <section class="card">
+    <div class="card-head"><h2>Where the time went</h2><span class="pill">{{ data.total_hours }}h</span></div>
+    {% set top = (data.distribution | map(attribute='hours') | max) if data.distribution else 1 %}
+    <div class="hbars">
+      {% for r in data.distribution %}
+      <div class="hbar" title="{{ r.label }}: {{ r.hours }} hours">
+        <span class="hbar-label">{{ r.label }}</span>
+        <span class="hbar-track"><span class="hbar-fill" style="width: {{ (r.hours / top * 100) | round(1) }}%; background: {{ r.color }}"></span></span>
+        <span class="hbar-value">{{ r.hours }}h</span>
+      </div>
+      {% else %}
+      <p class="muted">No scheduled time this week yet.</p>
+      {% endfor %}
+    </div>
+    <p class="small faint" style="margin-bottom:0">Calendar events are sorted by their Google Calendar colour. Uncategorised means the colour is not one of yours.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Sleep</h2><span class="pill">target {{ sleep_target }}h</span></div>
+    <div class="sleep-chart" style="--max: 12">
+      <div class="sleep-target" style="bottom: {{ (sleep_target / 12 * 100) | round(1) }}%"><span>{{ sleep_target }}h</span></div>
+      {% for n in data.nights %}
+      <div class="sleep-col" title="{% if n.hours is not none %}{{ n.date.strftime('%a') }} night: {{ n.hours }}h, {{ n.bed.strftime('%H:%M') }} to {{ n.wake.strftime('%H:%M') }}{% else %}{{ n.date.strftime('%a') }} night: not enough events to estimate{% endif %}">
+        <span class="sleep-val">{% if n.hours is not none %}{{ n.hours }}{% if n.hours < 7 %} ⚠{% endif %}{% else %}–{% endif %}</span>
+        <span class="sleep-bar {{ 'short' if n.hours is not none and n.hours < 7 }}" style="height: {{ ((n.hours or 0) / 12 * 100) | round(1) }}%"></span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="sleep-axis">
+      {% for n in data.nights %}<span>{{ n.date.strftime('%a') }}<br><small class="faint">{{ n.bed.strftime('%H:%M') if n.bed else '' }}{% if n.bed and n.wake %}–{% endif %}{{ n.wake.strftime('%H:%M') if n.wake else '' }}</small></span>{% endfor %}
+    </div>
+    <p class="small faint" style="margin-bottom:0">Estimated from your last event each day to your first event the next morning. ⚠ marks nights under 7 hours.</p>
+  </section>
+
+  <section class="card span-rows">
+    <div class="card-head"><h2>Training</h2><span class="pill">{{ t.sessions | length }} sessions</span></div>
+    {% with counts = t.muscles %}{% include "_anatomy.html" %}{% endwith %}
+    <ul class="task-list" style="margin-top: 12px">
+      {% for s in t.sessions %}
+      <li class="task">
+        <span class="check done" style="--prio: {{ categories.fitness.color }}"></span>
+        <div class="task-body">
+          <div class="task-title">{{ s.name }}</div>
+          <div class="task-meta">
+            <span class="when">{{ s.start.strftime('%a %H:%M') }}</span>
+            <span>{{ s.minutes }} min{% if s.km %} · {{ s.km }} km{% endif %}</span>
+            {% if s.muscles %}<span class="label">{{ s.muscles | join(', ') }}</span>{% endif %}
+            <span class="project">{{ 'Strava' if s.source == 'strava' else 'Calendar' }}</span>
+          </div>
+        </div>
+      </li>
+      {% else %}
+      <li class="muted" style="list-style:none">No workouts logged. Exercise blocks on your calendar and Strava activities show up here.</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Goals</h2><a class="btn ghost" href="/review?week={{ week }}">Tasks →</a></div>
+    {% for g in review.goals %}
+      {% set total = g.done + g.open %}
+      <div class="goal-row">
+        <div class="goal-top">
+          <span><span class="dot" style="background: {{ categories[g.area].color if g.area in categories else '#9a968b' }}"></span> {{ g.title }}</span>
+          <span class="muted small">{{ g.done }} of {{ total }} tasks</span>
+        </div>
+        <div class="bar"><span style="width: {{ (g.done / total * 100) | round(1) if total else 0 }}%"></span></div>
+        {% if g.weekly_hours %}<div class="small faint">{{ g.planned_hours }}h planned of {{ '%g' % g.weekly_hours }}h a week</div>{% endif %}
+      </div>
+    {% else %}
+      <p class="muted">Add goals with a Todoist label and their tasks count here.</p>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Energy</h2><a class="btn ghost" href="/retro?week={{ week }}">Retrospective →</a></div>
+    <div class="energy-row">
+      {% for e in data.energy %}
+      <div class="energy-cell" title="Week of {{ e.week.strftime('%d %b') }}: {{ e.label }}">
+        <span class="energy-emoji">{{ e.emoji }}</span>
+        <span class="small faint">{{ e.week.strftime('%d %b') }}</span>
+      </div>
+      {% else %}
+      <p class="muted">Pick an energy level in your retrospective and the trend appears here.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<div style="margin-top: 20px; display:flex; justify-content:flex-end">
+  <a class="btn primary" href="/review?week={{ week }}">Next: review tasks →</a>
+</div>
+{% endblock %}

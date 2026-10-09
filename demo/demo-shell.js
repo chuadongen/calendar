@@ -1,6 +1,6 @@
 // Page switching for the single-file demo: the real app has one URL per page.
 (() => {
-  const pages = ["review", "retro", "goals", "plan", "settings"];
+  const pages = ["dashboard", "review", "retro", "goals", "plan", "settings"];
   const toast = (msg) => {
     const t = document.getElementById("toast");
     t.textContent = msg;
@@ -43,7 +43,7 @@
 
   document.addEventListener("submit", (e) => {
     const form = e.target;
-    if (form.closest("#plan-area") || form.method === "dialog" || form.id === "add-form" || form.id === "edit-form") return;
+    if (form.method === "dialog" || form.id === "add-form" || form.id === "edit-form") return;
     e.preventDefault();
     toast("Saving goals, retros and settings needs the real server. The Plan page works fully here.");
   }, true);
@@ -59,6 +59,14 @@
     foot.append(document.createElement("br"), b);
   }
 
+  // Re-apply ticks saved from an earlier visit.
+  Object.entries(window.demoTaskStates()).forEach(([id, done]) => {
+    const row = document.querySelector(`[data-task="${CSS.escape(id)}"]`);
+    if (!row) return;
+    row.classList.toggle("is-done", done);
+    row.querySelector("button.check")?.classList.toggle("done", done);
+  });
+
   const start = (location.hash || "").replace("#", "");
-  show(pages.includes(start) ? start : "plan");
+  show(pages.includes(start) ? start : "dashboard");
 })();
