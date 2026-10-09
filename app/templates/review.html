@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Review · Sprint{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Sprint review</h1>
+    <p class="muted">What actually got done this week, straight from Todoist.</p>
+  </div>
+  {% include "_week_nav.html" %}
+</div>
+
+{% if data.error %}<div class="notice error">{{ data.error }}</div>{% endif %}
+
+{% set rate = (data.planned_done / data.planned_total * 100) | round | int if data.planned_total else 0 %}
+<div class="stats">
+  <div class="stat">
+    <div class="value">{{ data.completed | length }}</div>
+    <div class="label">Tasks completed</div>
+  </div>
+  <div class="stat">
+    <div class="value">{{ data.planned_done }}<span class="muted" style="font-size:16px"> / {{ data.planned_total }}</span></div>
+    <div class="label">Planned tasks done</div>
+    <div class="bar"><span style="width: {{ rate }}%"></span></div>
+  </div>
+  <div class="stat">
+    <div class="value">{{ data.goals | selectattr('done') | list | length }}<span class="muted" style="font-size:16px"> / {{ data.goals | length }}</span></div>
+    <div class="label">Goals that moved</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Progress by goal</h2><a class="btn ghost" href="/goals">Edit goals</a></div>
+    {% if not data.goals %}
+      <p class="muted">No active goals yet. <a href="/goals">Add your first goal</a> and give it a Todoist label so completions count towards it.</p>
+    {% endif %}
+    <ul class="task-list">
+      {% for g in data.goals %}
+      <li class="task">
+        <span class="dot" style="background: {{ categories[g.area if g.area in categories else 'life'].color }}; margin-top: 7px"></span>
+        <div class="task-body">
+          <div class="task-title">{{ g.title }}</div>
+          <div class="task-meta">
+            <span>{{ g.done }} task{{ '' if g.done == 1 else 's' }} done</span>
+            {% if g.target %}<span class="label">Target: {{ g.target }}</span>{% endif %}
+            <span class="project">{{ g.area }}</span>
+          </div>
+          {% if g.examples %}<div class="task-meta">{{ g.examples[:4] | join(' · ') }}{% if g.examples | length > 4 %} …{% endif %}</div>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Completed</h2><span class="pill">{{ data.completed | length }}</span></div>
+      <ul class="task-list">
+        {% for t in data.completed[:40] %}
+        <li class="task">
+          <span class="check done" style="--prio: {{ priority_colors[5 - (t.priority or 1)] if t.priority else '#808080' }}"></span>
+          <div class="task-body">
+            <div class="task-title" style="text-decoration: line-through; color: var(--muted)">{{ t.content }}</div>
+            <div class="task-meta">
+              {% if t.completed_at %}<span>{{ t.completed_at[:10] }}</span>{% endif %}
+              {% for l in t.labels or [] %}<span class="label">@{{ l }}</span>{% endfor %}
+            </div>
+          </div>
+        </li>
+        {% else %}
+        <li class="muted" style="list-style:none">Nothing completed yet this week.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Coming up</h2></div>
+      <ul class="task-list">
+        {% for m in upcoming %}
+        <li class="task">
+          <span class="check square" style="--prio: {{ '#d1453b' if m.kind == 'exam' else '#eb8909' }}"></span>
+          <div class="task-body">
+            <div class="task-title">{{ m.title }}</div>
+            <div class="task-meta"><span class="when">{{ m.at.strftime('%a %d %b, %H:%M') }}</span><span class="project">{{ m.kind }}</span></div>
+          </div>
+        </li>
+        {% else %}
+        <li class="muted" style="list-style:none">No milestones. Add exams and deadlines on the Goals page.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 20px; display:flex; justify-content:flex-end">
+  <a class="btn primary" href="/retro?week={{ week }}">Next: retrospective →</a>
+</div>
+{% endblock %}

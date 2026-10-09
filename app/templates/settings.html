@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Settings · Sprint{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><p class="muted">Connections and the rules the scheduler follows.</p></div></div>
+{% if request.query_params.get('saved') %}<div class="notice ok">Settings saved.</div>{% endif %}
+{% if request.query_params.get('google') %}<div class="notice ok">Google Calendar connected.</div>{% endif %}
+{% for e in errors %}<div class="notice error">{{ e }}</div>{% endfor %}
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Connections</h2></div>
+    <ul class="task-list">
+      <li class="task">
+        <span class="check {{ 'done' if google_connected }}" style="--prio: #1a73e8"></span>
+        <div class="task-body">
+          <div class="task-title">Google Calendar</div>
+          <div class="task-meta">
+            {% if google_connected %}<span class="when">Connected</span>
+            {% elif not google_secrets %}<span>Put your OAuth client JSON at <code>{{ cfg.google_client_secrets }}</code></span>
+            {% else %}<span>Not connected</span>{% endif %}
+          </div>
+          <div class="task-meta">Redirect URI to register: <code>{{ redirect_uri }}</code></div>
+        </div>
+        {% if google_secrets %}<a class="btn" href="/auth/google">{{ 'Reconnect' if google_connected else 'Connect' }}</a>{% endif %}
+      </li>
+      <li class="task">
+        <span class="check {{ 'done' if todoist_configured }}" style="--prio: #e44332"></span>
+        <div class="task-body">
+          <div class="task-title">Todoist</div>
+          <div class="task-meta">{% if todoist_configured %}<span class="when">Token set</span>{% else %}<span>Set <code>TODOIST_API_TOKEN</code> in <code>.env</code></span>{% endif %}</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <form class="card" method="post" action="/settings">
+    <div class="card-head"><h2>Scheduling rules</h2><button class="btn primary" type="submit">Save</button></div>
+    <div class="row">
+      <div class="field"><label>Day starts</label><input type="time" name="day_start" value="{{ prefs.day_start }}"></div>
+      <div class="field"><label>Day ends</label><input type="time" name="day_end" value="{{ prefs.day_end }}"></div>
+      <div class="field"><label>Buffer between blocks (min)</label><input type="number" min="0" name="buffer_min" value="{{ prefs.buffer_min }}"></div>
+    </div>
+
+    <label>Preferred hours per category (auto-fill tries these first)</label>
+    {% for key, c in categories.items() %}
+      {% set w = prefs.preferred_windows.get(key, ['', '']) %}
+      <div class="row" style="align-items:center; margin-bottom: 6px">
+        <span style="flex: 0 0 110px; display:flex; gap:8px; align-items:center"><span class="dot" style="background: {{ c.color }}"></span>{{ c.label }}</span>
+        <input style="flex:1" type="time" name="win_{{ key }}_start" value="{{ w[0] }}">
+        <input style="flex:1" type="time" name="win_{{ key }}_end" value="{{ w[1] }}">
+      </div>
+    {% endfor %}
+
+    <div class="field" style="margin-top: 12px">
+      <label>Travel times, one per line as "place | place = minutes"</label>
+      <textarea name="travel" style="font-family: ui-monospace, monospace; font-size: 12px">{% for k, v in prefs.travel_minutes.items() %}{{ k.replace('|', ' | ') }} = {{ v }}
+{% endfor %}</textarea>
+      <div class="small faint">Give plan blocks a location with the same names and the scheduler keeps this much time between them.</div>
+    </div>
+
+    {% if calendars %}
+    <label>Calendars that count as busy</label>
+    {% for c in calendars %}
+      <label style="display:flex; gap:8px; align-items:center; font-weight:400; color: var(--text)">
+        <input type="checkbox" style="width:auto" name="busy_calendar_ids" value="{{ c.id }}" {{ 'checked' if c.id in prefs.busy_calendar_ids or (not prefs.busy_calendar_ids and c.get('primary')) }}>
+        <span class="dot" style="background: {{ c.backgroundColor }}"></span>{{ c.summary }}
+      </label>
+    {% endfor %}
+    <label style="margin-top: 12px">Calendars to ignore (tick the Todoist sync calendar)</label>
+    {% for c in calendars %}
+      <label style="display:flex; gap:8px; align-items:center; font-weight:400; color: var(--text)">
+        <input type="checkbox" style="width:auto" name="ignored_calendar_ids" value="{{ c.id }}" {{ 'checked' if c.id in prefs.ignored_calendar_ids }}>
+        {{ c.summary }}
+      </label>
+    {% endfor %}
+    {% else %}
+      {% for cid in prefs.busy_calendar_ids %}<input type="hidden" name="busy_calendar_ids" value="{{ cid }}">{% endfor %}
+      {% for cid in prefs.ignored_calendar_ids %}<input type="hidden" name="ignored_calendar_ids" value="{{ cid }}">{% endfor %}
+    {% endif %}
+
+    <div class="field" style="margin-top: 12px"><label>Default Todoist project for new tasks</label>
+      {% if projects %}
+      <select name="todoist_default_project_id">
+        <option value="">Inbox</option>
+        {% for p in projects %}<option value="{{ p.id }}" {{ 'selected' if p.id == prefs.todoist_default_project_id }}>{{ p.name }}</option>{% endfor %}
+      </select>
+      {% else %}<input name="todoist_default_project_id" value="{{ prefs.todoist_default_project_id }}" placeholder="Project id, empty for Inbox">{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

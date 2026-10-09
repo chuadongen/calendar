@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sprint Planner{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23c96442' d='M12 2l1.6 6.2L20 6l-4.4 4.8L22 12l-6.4 1.2L20 18l-6.4-2.2L12 22l-1.6-6.2L4 18l4.4-4.8L2 12l6.4-1.2L4 6l6.4 2.2z'/></svg>">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script>
+    try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.6 6.2L20 6l-4.4 4.8L22 12l-6.4 1.2L20 18l-6.4-2.2L12 22l-1.6-6.2L4 18l4.4-4.8L2 12l6.4-1.2L4 6l6.4 2.2z"/></svg>
+      Sprint
+    </div>
+    <div class="nav-section">Sunday ritual</div>
+    <a class="nav-link {{ 'active' if nav == 'review' }}" href="/review"><span class="step">1</span>Review</a>
+    <a class="nav-link {{ 'active' if nav == 'retro' }}" href="/retro"><span class="step">2</span>Retrospective</a>
+    <a class="nav-link {{ 'active' if nav in ('goals', 'import_preview') }}" href="/goals"><span class="step">3</span>Goals</a>
+    <a class="nav-link {{ 'active' if nav == 'plan' }}" href="/plan"><span class="step">4</span>Plan</a>
+    <div class="nav-section">Setup</div>
+    <a class="nav-link {{ 'active' if nav == 'settings' }}" href="/settings"><span class="step">⚙</span>Settings</a>
+    <div class="sidebar-foot">
+      Week of {{ this_week.strftime('%d %b') }}<br>
+      <button class="theme-toggle" type="button" onclick="toggleTheme()">Toggle light / dark</button>
+    </div>
+  </aside>
+  <main class="main {% block main_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script>
+  function toggleTheme() {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+  }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

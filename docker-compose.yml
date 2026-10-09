@@ -1,0 +1,12 @@
+services:
+  planner:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /srv/data
+    volumes:
+      - ./data:/srv/data
+    # Bound to localhost only; Tailscale Serve publishes it to your tailnet over HTTPS.
+    ports:
+      - "127.0.0.1:8000:8000"

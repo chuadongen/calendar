@@ -1,0 +1,5 @@
+<div class="week-nav">
+  <a class="btn icon" href="?week={{ prev_week }}" title="Previous week">‹</a>
+  <span class="pill">{{ week.strftime('%d %b') }} to {{ (week + delta(6)).strftime('%d %b %Y') }}</span>
+  <a class="btn icon" href="?week={{ following_week }}" title="Next week">›</a>
+</div>

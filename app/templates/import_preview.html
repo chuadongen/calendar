@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Review changes · Sprint{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Review changes</h1><p class="muted">Nothing is saved until you approve.</p></div></div>
+{% if error %}
+  <div class="notice error">{{ error }}</div>
+{% elif not changes %}
+  <div class="notice">The update contains no changes.</div>
+{% endif %}
+<div class="card">
+  <ul class="task-list">
+    {% for c in changes %}
+    <li class="task">
+      <span class="pill" style="min-width: 130px; justify-content:center">{{ c.action }}</span>
+      <div class="task-body">
+        <div class="task-title">{{ c.title }}</div>
+        {% for f, pair in c.fields.items() %}
+          <div class="task-meta"><strong>{{ f }}</strong><span style="text-decoration: line-through">{{ pair[0] if pair[0] not in (none, '') else '(empty)' }}</span><span>→ {{ pair[1] if pair[1] not in (none, '') else '(empty)' }}</span></div>
+        {% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/goals/import/apply" class="row" style="justify-content:flex-end; margin-top: 14px">
+    <input type="hidden" name="payload" value="{{ payload }}">
+    <a class="btn" href="/goals">Cancel</a>
+    {% if changes and not error %}<button class="btn primary" type="submit">Approve and save version</button>{% endif %}
+  </form>
+</div>
+<details style="margin-top: 16px"><summary>Pasted text</summary><pre class="code">{{ payload }}</pre></details>
+{% endblock %}

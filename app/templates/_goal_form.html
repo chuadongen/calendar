@@ -1,0 +1,21 @@
+<form method="post" action="/goals">
+  <input type="hidden" name="goal_id" value="{{ g.id if g }}">
+  <div class="row">
+    <div class="field" style="flex: 2 1 220px"><label>Title</label><input name="title" required value="{{ g.title if g }}" placeholder="e.g. ST2131 A grade"></div>
+    <div class="field"><label>Area</label>
+      <select name="area">{% for a in areas %}<option value="{{ a }}" {{ 'selected' if g and g.area == a }}>{{ a | capitalize }}</option>{% endfor %}</select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Metric</label><input name="metric" value="{{ g.metric if g }}" placeholder="Chapters revised"></div>
+    <div class="field"><label>Target</label><input name="target" value="{{ g.target if g }}" placeholder="All 10 by week 12"></div>
+    <div class="field"><label>Deadline</label><input type="date" name="deadline" value="{{ g.deadline if g and g.deadline }}"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Todoist label</label><input name="todoist_label" value="{{ g.todoist_label if g }}" placeholder="st2131"></div>
+    <div class="field"><label>Todoist project id</label><input name="todoist_project_id" value="{{ g.todoist_project_id if g }}" placeholder="optional"></div>
+    <div class="field"><label>Hours per week</label><input type="number" step="0.5" min="0" name="weekly_hours" value="{{ g.weekly_hours if g else 0 }}"></div>
+  </div>
+  <div class="field"><label>Notes (strategy, weak spots, current status)</label><textarea name="notes" style="min-height:60px">{{ g.notes if g }}</textarea></div>
+  <div style="text-align:right"><button class="btn primary" type="submit">{{ 'Save goal' if g else 'Add goal' }}</button></div>
+</form>

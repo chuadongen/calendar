@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Goals · Sprint{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Goals</h1>
+    <p class="muted">Your long-term state. Discuss changes in a chat, then import them here as a new version.</p>
+  </div>
+  <a class="btn primary" href="/plan">Next: plan the week →</a>
+</div>
+{% if request.query_params.get('imported') %}<div class="notice ok">Update imported and saved as a new version.</div>{% endif %}
+
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Active goals</h2><span class="pill">{{ goals | length }}</span></div>
+      <ul class="task-list">
+        {% for g in goals %}
+        <li class="task" style="display:block">
+          <details>
+            <summary style="list-style:none; display:flex; gap:10px; align-items:flex-start; color: var(--text)">
+              <span class="dot" style="background: {{ categories[g.area].color if g.area in categories else '#808080' }}; margin-top:7px"></span>
+              <div class="task-body">
+                <div class="task-title">{{ g.title }}</div>
+                <div class="task-meta">
+                  {% if g.target %}<span>{{ g.target }}</span>{% endif %}
+                  {% if g.deadline %}<span class="when">by {{ g.deadline.strftime('%d %b') }}</span>{% endif %}
+                  {% if g.weekly_hours %}<span>{{ '%g' % g.weekly_hours }} h/week</span>{% endif %}
+                  {% if g.todoist_label %}<span class="label">@{{ g.todoist_label }}</span>{% endif %}
+                  <span class="project">{{ g.area }}</span>
+                </div>
+                {% if g.notes %}<div class="task-meta">{{ g.notes }}</div>{% endif %}
+              </div>
+            </summary>
+            <div style="padding: 12px 0 4px 18px">
+              {% include "_goal_form.html" %}
+              <form method="post" action="/goals/{{ g.id }}/archive" style="margin-top:6px"><button class="btn ghost danger" type="submit">Archive goal</button></form>
+            </div>
+          </details>
+        </li>
+        {% endfor %}
+      </ul>
+      <details style="margin-top: 10px">
+        <summary class="add-task" style="list-style:none"><span class="plus">+</span>Add goal</summary>
+        <div class="quick-add">{% with g = none %}{% include "_goal_form.html" %}{% endwith %}</div>
+      </details>
+      {% if archived %}
+      <details style="margin-top: 10px"><summary class="small">Archived ({{ archived | length }})</summary>
+        {% for g in archived %}
+          <form method="post" action="/goals/{{ g.id }}/archive" class="row" style="justify-content:space-between; padding: 6px 0">
+            <span class="muted">{{ g.title }}</span><button class="btn ghost" type="submit">Restore</button>
+          </form>
+        {% endfor %}
+      </details>
+      {% endif %}
+    </div>
+
+    <div class="card" id="milestones">
+      <div class="card-head"><h2>Exams and deadlines</h2></div>
+      <ul class="task-list">
+        {% for m in milestones %}
+        <li class="task">
+          <span class="check square" style="--prio: {{ '#d1453b' if m.kind == 'exam' else '#eb8909' }}"></span>
+          <div class="task-body">
+            <div class="task-title">{{ m.title }}</div>
+            <div class="task-meta">
+              <span class="when">{{ m.at.strftime('%a %d %b %Y, %H:%M') }}</span>
+              {% if m.goal_id %}<span class="label">{{ goal_names.get(m.goal_id, '') }}</span>{% endif %}
+              <span class="project">{{ m.kind }}</span>
+            </div>
+          </div>
+          <form method="post" action="/milestones/{{ m.id }}/delete" class="task-actions"><button class="btn ghost icon" title="Delete">✕</button></form>
+        </li>
+        {% endfor %}
+      </ul>
+      <details style="margin-top: 10px">
+        <summary class="add-task" style="list-style:none"><span class="plus">+</span>Add exam or deadline</summary>
+        <form class="quick-add" method="post" action="/milestones">
+          <div class="row">
+            <div class="field" style="flex: 2 1 200px"><label>Title</label><input name="title" required placeholder="ST2131 Midterm"></div>
+            <div class="field"><label>Kind</label><select name="kind"><option value="exam">Exam</option><option value="deadline">Deadline</option><option value="event">Event</option></select></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>When</label><input type="datetime-local" name="at" required></div>
+            <div class="field"><label>Goal</label><select name="goal_id"><option value="">None</option>{% for g in goals %}<option value="{{ g.id }}">{{ g.title }}</option>{% endfor %}</select></div>
+          </div>
+          <div class="foot"><button class="btn primary" type="submit">Add</button></div>
+        </form>
+      </details>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><h2>Discuss with an LLM</h2></div>
+      <ol class="small muted" style="padding-left: 18px; margin-top: 0">
+        <li>Copy the context and paste it into your planning chat (Claude, Gemini, any).</li>
+        <li>Talk it through. When you agree, ask for the JSON update.</li>
+        <li>Paste the reply below. You will see every change before it is saved.</li>
+      </ol>
+      <div class="row" style="margin-bottom: 12px">
+        <button class="btn" type="button" id="copy-context">Copy context</button>
+        <a class="btn ghost" href="/goals/export" target="_blank">View as text</a>
+      </div>
+      <form method="post" action="/goals/import">
+        <div class="field"><label for="payload">Paste the chat's JSON reply</label>
+          <textarea id="payload" name="payload" required style="min-height: 140px; font-family: ui-monospace, monospace; font-size: 12px" placeholder='{"note": "...", "upsert_goals": [...]}'></textarea>
+        </div>
+        <div style="text-align:right"><button class="btn primary" type="submit">Preview changes</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Version history</h2></div>
+      <ul class="task-list">
+        {% for v in versions %}
+        <li class="task">
+          <span class="dot" style="background: {{ 'var(--accent)' if v.source == 'import' else 'var(--faint)' }}; margin-top: 7px"></span>
+          <div class="task-body">
+            <div class="task-title">{{ v.note or ('Imported update' if v.source == 'import' else 'Manual edit') }}</div>
+            <div class="task-meta"><span>{{ v.created_at.strftime('%d %b %Y, %H:%M') }}</span><span>{{ v.snapshot.goals | length }} goals</span><a class="project" href="/goals/versions/{{ v.id }}" target="_blank">View snapshot</a></div>
+          </div>
+        </li>
+        {% else %}
+        <li class="muted" style="list-style:none">Every change to your goals is saved here.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById("copy-context").addEventListener("click", async () => {
+    const text = await (await fetch("/goals/export")).text();
+    const toast = document.getElementById("toast");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.textContent = "Context copied. Paste it into your chat.";
+    } catch (e) {
+      window.open("/goals/export", "_blank");
+      toast.textContent = "Clipboard unavailable here, opened the text instead.";
+    }
+    toast.hidden = false;
+    setTimeout(() => (toast.hidden = true), 2500);
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Plan · Sprint{% endblock %}
+{% block main_class %}full{% endblock %}
+{% block content %}
+<div class="plan-top">
+  <h1>Plan</h1>
+  {% include "_week_nav.html" %}
+  <span class="spacer"></span>
+  <button class="btn ghost" id="btn-refresh" title="Re-read Google Calendar and Todoist">Refresh</button>
+  <button class="btn" id="btn-goals" title="Add blocks for each goal's weekly hours">From goals</button>
+  <button class="btn" id="btn-import" title="Pull open Todoist tasks without a time">Import Todoist</button>
+  <button class="btn" id="btn-autofill">Auto-fill</button>
+  <button class="btn primary" id="btn-commit">Commit to Calendar &amp; Todoist</button>
+</div>
+<div id="errors"></div>
+<div class="plan-body">
+  <section class="backlog" id="backlog">
+    <div class="hours" id="hours" style="margin-bottom: 14px"></div>
+    <h2>Backlog <span class="count" id="backlog-count"></span></h2>
+    <p class="small muted" style="margin: 4px 0 10px">Drag onto the calendar. Drag a block back here to unschedule it.</p>
+    <ul class="task-list" id="backlog-list"></ul>
+    <button class="add-task" id="show-add"><span class="plus">+</span>Add block</button>
+    <form class="quick-add" id="add-form" hidden autocomplete="off">
+      <input class="title" name="title" placeholder="e.g. Revise ST2131 chapter 4" required>
+      <div class="chips">
+        <span class="seg" data-name="kind"><button type="button" data-v="task" class="on">Task</button><button type="button" data-v="event">Event</button></span>
+        <select name="duration_min" title="Duration">
+          {% for m in [15, 30, 45, 60, 90, 120, 150, 180, 240] %}<option value="{{ m }}" {{ 'selected' if m == 60 }}>{{ (m // 60 ~ 'h ' if m >= 60 else '') ~ (m % 60 ~ 'm' if m % 60 else '') }}</option>{% endfor %}
+        </select>
+        <select name="category" title="Category">{% for k, c in categories.items() %}<option value="{{ k }}">{{ c.label }}</option>{% endfor %}</select>
+        <select name="priority" title="Priority">{% for p in [1, 2, 3, 4] %}<option value="{{ p }}" {{ 'selected' if p == 4 }}>P{{ p }}</option>{% endfor %}</select>
+        <select name="goal_id" title="Goal"><option value="">No goal</option>{% for g in goals %}<option value="{{ g.id }}">{{ g.title }}</option>{% endfor %}</select>
+        <input name="location" placeholder="Location" style="width: 100px" list="places">
+      </div>
+      <div class="foot"><button class="btn ghost" type="button" id="cancel-add">Cancel</button><button class="btn primary" type="submit">Add block</button></div>
+    </form>
+    <div class="drop-hint">Drop here to unschedule</div>
+    <div class="issue-list" id="issues"></div>
+  </section>
+  <section class="cal-wrap">
+    <div id="calendar"></div>
+    <div class="legend">
+      {% for k, c in categories.items() %}<span><i class="sw" style="background: {{ c.color }}"></i>{{ c.label }}</span>{% endfor %}
+      <span><i class="sw" style="background: var(--surface-2); border: 1px solid var(--border-strong)"></i>Existing (locked)</span>
+      <span>◯ Todoist task · dashed = not committed yet</span>
+    </div>
+  </section>
+</div>
+
+<datalist id="places">{% for k in prefs.travel_minutes %}{% for p in k.split('|') %}<option value="{{ p }}">{% endfor %}{% endfor %}</datalist>
+
+<dialog id="edit">
+  <form method="dialog" id="edit-form" autocomplete="off">
+    <div class="head"><h2 id="edit-heading">Edit block</h2><button class="btn ghost icon" value="cancel" formnovalidate>✕</button></div>
+    <ul class="issues" id="edit-issues"></ul>
+    <div class="field"><label>Title</label><input name="title" required></div>
+    <div class="row">
+      <div class="field"><label>Type</label><select name="kind"><option value="task">Todoist task</option><option value="event">Calendar event</option></select></div>
+      <div class="field"><label>Category</label><select name="category">{% for k, c in categories.items() %}<option value="{{ k }}">{{ c.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Priority</label><select name="priority">{% for p in [1, 2, 3, 4] %}<option value="{{ p }}">P{{ p }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Start</label><input type="datetime-local" name="start" step="900"></div>
+      <div class="field"><label>Duration (min)</label><input type="number" name="duration_min" min="5" step="5"></div>
+      <div class="field"><label>Location</label><input name="location" list="places"></div>
+    </div>
+    <div class="field"><label>Goal</label><select name="goal_id"><option value="">No goal</option>{% for g in goals %}<option value="{{ g.id }}">{{ g.title }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Notes</label><textarea name="notes" style="min-height:60px"></textarea></div>
+    <div class="foot">
+      <div class="row">
+        <button class="btn ghost danger" type="button" id="edit-delete">Delete</button>
+        <button class="btn ghost" type="button" id="edit-unschedule">Unschedule</button>
+        <button class="btn ghost" type="button" id="edit-duplicate">Duplicate</button>
+      </div>
+      <button class="btn primary" type="submit" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/fullcalendar/index.global.min.js"></script>
+<script>
+  window.PLAN = {
+    week: "{{ week }}",
+    dayStart: "{{ prefs.day_start }}",
+    categories: {{ categories | tojson }},
+    priorityColors: {{ priority_colors | tojson }},
+  };
+</script>
+<script src="/static/js/plan.js"></script>
+{% endblock %}

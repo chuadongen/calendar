@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Retrospective · Sprint{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Retrospective</h1>
+    <p class="muted">A short reflection, saved for every week.</p>
+  </div>
+  {% include "_week_nav.html" %}
+</div>
+{% if request.query_params.get('saved') %}<div class="notice ok">Saved.</div>{% endif %}
+
+<div class="grid-2">
+  <form class="card" method="post" action="/retro">
+    <input type="hidden" name="week" value="{{ week }}">
+    <div class="field">
+      <label for="went_well">What went well?</label>
+      <textarea id="went_well" name="went_well">{{ retro.went_well if retro }}</textarea>
+    </div>
+    <div class="field">
+      <label for="went_badly">What did not go well, and why?</label>
+      <textarea id="went_badly" name="went_badly">{{ retro.went_badly if retro }}</textarea>
+    </div>
+    <div class="field">
+      <label for="change">One thing to change next week</label>
+      <textarea id="change" name="change" style="min-height:60px">{{ retro.change if retro }}</textarea>
+    </div>
+    <div class="field">
+      <label for="notes">Free notes</label>
+      <textarea id="notes" name="notes">{{ retro.notes if retro }}</textarea>
+    </div>
+    <div class="row">
+      <div class="field" style="flex: 0 0 180px">
+        <label for="energy">Energy this week</label>
+        <select id="energy" name="energy">
+          <option value="">Not set</option>
+          {% for n in range(1, 6) %}<option value="{{ n }}" {{ 'selected' if retro and retro.energy == n }}>{{ n }} / 5</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field" style="flex: 1; text-align: right">
+        <button class="btn primary" type="submit">Save retrospective</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="card-head"><h2>Past weeks</h2></div>
+    {% for r in history %}
+      <details {{ 'open' if loop.first and r.week_start != week }} style="padding: 8px 0; border-bottom: 1px solid var(--border)">
+        <summary><strong style="color: var(--text)">Week of {{ r.week_start.strftime('%d %b %Y') }}</strong>{% if r.energy %} · energy {{ r.energy }}/5{% endif %}</summary>
+        <div class="small" style="margin-top: 8px">
+          {% if r.went_well %}<p><strong>Went well.</strong> {{ r.went_well }}</p>{% endif %}
+          {% if r.went_badly %}<p><strong>Went badly.</strong> {{ r.went_badly }}</p>{% endif %}
+          {% if r.change %}<p><strong>Change.</strong> {{ r.change }}</p>{% endif %}
+          {% if r.notes %}<p class="muted">{{ r.notes }}</p>{% endif %}
+          <a href="/retro?week={{ r.week_start }}">Open</a>
+        </div>
+      </details>
+    {% else %}
+      <p class="muted">Your saved retrospectives appear here.</p>
+    {% endfor %}
+  </div>
+</div>
+<div style="margin-top: 20px; display:flex; justify-content:space-between">
+  <a class="btn" href="/review?week={{ week }}">← Review</a>
+  <a class="btn primary" href="/goals">Next: update goals →</a>
+</div>
+{% endblock %}
